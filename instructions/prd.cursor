@@ -1,0 +1,272 @@
+PRD Complet - Stack Python
+
+Document de spécifications détaillé
+1 Vue d'ensemble
+🎯 Objectif
+
+Créer un système de kiosque self-service permettant aux utilisateurs de rechercher et demander des films, séries et animés qui seront automatiquement téléchargés et intégrés à Plex.
+👥 Utilisateurs cibles
+
+    • Membres du foyer/famille
+    • Amis avec accès Plex
+    • Administrateur Plex
+
+2 Fonctionnalités
+🔍 Recherche & Découverte
+
+    ✓ Recherche unifiée (films, séries, animés)
+    ✓ Intégration TMDB, TVDB, AniList, MAL
+    ✓ Suggestions & recommandations
+    ✓ Filtres par genre, année, note
+
+🤖 Module IA (Animés)
+
+    ✓ Résolution des noms alternatifs
+    ✓ Scoring intelligent des torrents
+    ✓ Renommage automatique Plex
+    ✓ Détection qualité/sous-titres
+
+⬇️ Téléchargement
+
+    ✓ Scraping YGGtorrent + bypass CF
+    ✓ Queue de téléchargement
+    ✓ Gestion automatique des priorités
+    ✓ Support qBittorrent/Transmission
+
+📺 Intégration Plex
+
+    ✓ Scan automatique des librairies
+    ✓ Vérification doublons
+    ✓ Notifications utilisateur
+    ✓ Métadonnées enrichies
+
+3 Architecture Technique
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ FRONTEND │
+│ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ │
+│ │ Vanilla JS │ │ Tailwind CSS │ │ Alpine.js │ │
+│ │ + HTMX │ │ │ │ (interactions) │ │
+│ └────────┬────────┘ └─────────────────┘ └─────────────────┘ │
+└───────────┼─────────────────────────────────────────────────────────────────────┘
+            │ HTTP/WebSocket
+┌───────────▼─────────────────────────────────────────────────────────────────────┐
+│ BACKEND (FastAPI) │
+│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐ │
+│ │ API REST │ │ WebSocket │ │ Auth │ │ Background Tasks │ │
+│ │ Endpoints │ │ Server │ │ JWT │ │ (Celery) │ │
+│ └──────┬──────┘ └──────┬──────┘ └─────────────┘ └───────────┬─────────────┘ │
+└─────────┼────────────────┼──────────────────────────────────────┼───────────────┘
+          │ │ │
+┌─────────▼────────────────▼──────────────────────────────────────▼───────────────┐
+│ SERVICES LAYER │
+│ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────────────┐ │
+│ │ Media Search │ │ Torrent │ │ AI Agent │ │ Plex Manager │ │
+│ │ Service │ │ Service │ │ (Claude) │ │ │ │
+│ │ TMDB/AniList │ │ YGG+CF │ │ │ │ │ │
+│ └───────────────┘ └───────────────┘ └───────────────┘ └───────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+          │ │ │ │
+┌─────────▼────────────────▼────────────────────▼────────────────────▼────────────┐
+│ EXTERNAL SERVICES │
+│ ┌──────────┐ ┌──────────┐ ┌──────────────┐ ┌──────────┐ ┌────────────────────┐ │
+│ │ TMDB │ │ AniList │ │ FlareSolverr │ │ Redis │ │ qBittorrent/ │ │
+│ │ API │ │ API │ │ (CF bypass) │ │ Queue │ │ Transmission │ │
+│ └──────────┘ └──────────┘ └──────────────┘ └──────────┘ └────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                        │
+┌───────────────────────▼─────────────────────────────────────────────────────────┐
+│ DATA LAYER │
+│ ┌───────────────────────────┐ ┌───────────────────────────────────────────┐ │
+│ │ SQLite/PostgreSQL │ │ File System │ │
+│ │ - Users & Requests │ │ - Media Files │ │
+│ │ - Download History │ │ - Thumbnails Cache │ │
+│ │ - AI Rules & Mappings │ │ - Logs │ │
+│ └───────────────────────────┘ └───────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                        
+
+🐍 Backend Python
+
+    • FastAPI - Framework async
+    • Pydantic - Validation
+    • SQLAlchemy - ORM
+    • Celery - Task queue
+    • httpx - HTTP client
+
+🌐 Scraping
+
+    • FlareSolverr - CF bypass
+    • BeautifulSoup4 - Parsing
+    • lxml - Parser rapide
+    • cloudscraper - Backup
+
+🤖 IA Integration
+
+    • anthropic - Claude API
+    • openai - GPT backup
+    • Prompts structurés
+    • Cache des décisions
+
+4 Module IA - Règles de Recherche Animés
+🎯 Workflow IA
+1. Résolution Noms
+
+L'IA analyse les noms alternatifs (romaji, kanji, anglais) via AniList/MAL
+2. Scoring Torrents
+
+Évaluation basée sur: groupe, qualité, seeders, taille, sous-titres
+3. Renommage Plex
+
+Format: Show Name (Year) - SXXEXX - Episode Title.ext
+📋 Règles de Scoring Torrent
+Groupes préférés (SubsPlease, Erai-raws...) +50 pts
+Résolution 1080p +30 pts
+HEVC/x265 (efficacité) +20 pts
+Batch complet +25 pts
+Dual audio (VOSTFR+VO) +40 pts
+Seeders > 10 +15 pts
+Cam/TS quality -100 pts
+Hardcoded subs -30 pts
+🔄 Exemple de Prompt IA
+
+Tu es un expert en anime et en gestion de médiathèque Plex.
+
+TÂCHE: Analyser les torrents suivants pour l'anime "Shingeki no Kyojin" (Attack on Titan)
+
+TORRENTS DISPONIBLES:
+1. [SubsPlease] Shingeki no Kyojin S04 (1080p) [Batch] - 45.2GB - 156 seeders
+2. [Judas] Attack on Titan S04 Complete (1080p x265) - 12.1GB - 89 seeders  
+3. shingeki_no_kyojin_final_720p_HardSub - 8.5GB - 23 seeders
+
+RÈGLES:
+- Préférer les groupes reconnus (SubsPlease, Erai-raws, Judas)
+- 1080p minimum sauf si indisponible
+- HEVC/x265 préféré pour l'espace disque
+- Éviter les hardsubs
+- Vérifier la complétude de la saison
+
+RÉPONSE ATTENDUE (JSON):
+{
+  "best_choice": 2,
+  "reasoning": "...",
+  "plex_naming": "Attack on Titan (2013)/Season 04/Attack on Titan (2013) - S04E01 - ...",
+  "confidence": 0.95
+}
+                            
+
+5 API Endpoints
+GET
+/api/v1/search
+
+Recherche unifiée (films, séries, animés)
+Params: q, type, year, page
+POST
+/api/v1/requests
+
+Créer une nouvelle demande de média
+Body: media_id, media_type, quality_preference
+GET
+/api/v1/torrents/search
+
+Recherche de torrents sur YGGtorrent (avec bypass CF)
+Params: query, category
+POST
+/api/v1/ai/analyze-torrents
+
+Analyse IA pour sélection du meilleur torrent
+Body: media_info, torrents[]
+POST
+/api/v1/plex/scan
+
+Déclencher un scan de librairie Plex
+Body: library_id (optional)
+GET
+/api/v1/downloads/status
+
+État des téléchargements en cours
+WebSocket disponible: /ws/downloads
+6 Structure du Projet
+
+plex-kiosk/
+├── 📁 backend/
+│ ├── 📁 app/
+│ │ ├── __init__.py
+│ │ ├── main.py # FastAPI app entry
+│ │ ├── config.py # Settings & env vars
+│ │ ├── 📁 api/
+│ │ │ ├── v1/
+│ │ │ │ ├── search.py # Search endpoints
+│ │ │ │ ├── requests.py # Request endpoints
+│ │ │ │ ├── torrents.py # Torrent endpoints
+│ │ │ │ ├── plex.py # Plex endpoints
+│ │ │ │ └── ai.py # AI endpoints
+│ │ ├── 📁 services/
+│ │ │ ├── media_search.py # TMDB/AniList integration
+│ │ │ ├── torrent_scraper.py # YGG + FlareSolverr
+│ │ │ ├── ai_agent.py # Claude/GPT integration
+│ │ │ ├── plex_manager.py # Plex API wrapper
+│ │ │ ├── downloader.py # qBittorrent/Transmission
+│ │ │ └── file_renamer.py # Plex naming convention
+│ │ ├── 📁 models/
+│ │ │ ├── database.py # SQLAlchemy setup
+│ │ │ ├── user.py
+│ │ │ ├── request.py
+│ │ │ └── download.py
+│ │ ├── 📁 schemas/
+│ │ │ └── *.py # Pydantic schemas
+│ │ └── 📁 tasks/
+│ │ └── celery_worker.py # Background tasks
+│ ├── requirements.txt
+│ ├── Dockerfile
+│ └── .env.example
+├── 📁 frontend/
+│ ├── index.html # Main SPA
+│ ├── 📁 static/
+│ │ ├── css/
+│ │ │ └── styles.css # Tailwind build
+│ │ └── js/
+│ │ ├── app.js # Main app logic
+│ │ ├── api.js # API client
+│ │ └── components/ # Alpine.js components
+│ └── 📁 templates/ # HTMX partials
+├── 📁 docker/
+│ ├── docker-compose.yml
+│ └── docker-compose.dev.yml
+├── 📁 scripts/
+│ └── setup.sh
+└── README.md
+                    
+
+7 Roadmap
+Phase 1
+MVP Core (2 semaines)
+
+    ✓ Setup FastAPI + DB
+    ✓ Recherche TMDB basique
+    ✓ Scraping YGG + FlareSolverr
+    ✓ Interface kiosque simple
+
+Phase 2
+Animés + IA (2 semaines)
+
+    ○ Intégration AniList/MAL
+    ○ Module IA scoring torrents
+    ○ Renommage automatique
+    ○ Gestion noms alternatifs
+
+Phase 3
+Plex Integration (1 semaine)
+
+    ○ API Plex complète
+    ○ Scan auto post-download
+    ○ Détection doublons
+    ○ Notifications
+
+Phase 4
+Polish & Deploy (1 semaine)
+
+    ○ UI/UX améliorations
+    ○ Docker compose production
+    ○ Documentation
+    ○ Tests & monitoring

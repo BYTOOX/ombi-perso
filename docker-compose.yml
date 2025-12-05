@@ -1,0 +1,108 @@
+version: "3.9"
+
+services:
+  # ===========================================================================
+  # PLEX KIOSK - Main Application
+  # ===========================================================================
+  plex-kiosk:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: plex-kiosk
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      # Application
+      - APP_NAME=${APP_NAME:-plex-kiosk}
+      - APP_PORT=8765
+      - SECRET_KEY=${SECRET_KEY:?Secret key required}
+      - DEBUG=${DEBUG:-false}
+      # Database
+      - DATABASE_URL=sqlite:///./data/kiosk.db
+      # Redis
+      - REDIS_URL=redis://redis:6379/0
+      # FlareSolverr
+      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
+      # Ollama
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:14b}
+      # TMDB
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      # YGGtorrent
+      - YGG_USERNAME=${YGG_USERNAME}
+      - YGG_PASSWORD=${YGG_PASSWORD}
+      - YGG_PASSKEY=${YGG_PASSKEY}
+      # Plex
+      - PLEX_URL=${PLEX_URL}
+      - PLEX_TOKEN=${PLEX_TOKEN}
+      # qBittorrent
+      - QBITTORRENT_URL=${QBITTORRENT_URL}
+      - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME:-admin}
+      - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD}
+      # Paths
+      - DOWNLOAD_PATH=/downloads
+      - LIBRARY_PATHS=${LIBRARY_PATHS}
+      # Notifications
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      # Limits
+      - MAX_REQUESTS_PER_DAY=${MAX_REQUESTS_PER_DAY:-10}
+      - SEED_DURATION_HOURS=${SEED_DURATION_HOURS:-24}
+      - MAX_DOWNLOAD_SIZE_GB=${MAX_DOWNLOAD_SIZE_GB:-1000}
+    volumes:
+      - ./data:/app/data                    # SQLite database & logs
+      - ${DOWNLOAD_PATH:-./downloads}:/downloads  # Temporary downloads
+      - ${MEDIA_PATH:-./media}:/media       # Media library (read-only for Plex)
+    depends_on:
+      - redis
+      - flaresolverr
+    networks:
+      - plex-kiosk-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Access host Ollama
+
+  # ===========================================================================
+  # REDIS - Cache & Queue
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: plex-kiosk-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - plex-kiosk-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================================================
+  # FLARESOLVERR - Cloudflare Bypass
+  # ===========================================================================
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: plex-kiosk-flaresolverr
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+      - TZ=Europe/Paris
+    ports:
+      - "8191:8191"  # Optional: expose for debugging
+    networks:
+      - plex-kiosk-network
+    # Note: FlareSolverr uses ~500MB RAM
+
+# ===========================================================================
+# NETWORKS & VOLUMES
+# ===========================================================================
+networks:
+  plex-kiosk-network:
+    driver: bridge
+
+volumes:
+  redis-data:
