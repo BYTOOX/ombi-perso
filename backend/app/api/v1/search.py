@@ -9,8 +9,10 @@ from ...services.plex_manager import PlexManagerService, get_plex_manager_servic
 from ...schemas.media import MediaSearchResult, MediaDetails, MediaType
 from .auth import get_current_user
 from ...models import User
+from ...config import get_settings
 
 router = APIRouter(prefix="/search", tags=["Search"])
+settings = get_settings()
 
 
 @router.get("", response_model=List[MediaSearchResult])
@@ -99,3 +101,64 @@ async def search_torrents(
     )
     
     return {"results": results, "count": len(results)}
+
+
+@router.get("/trending")
+async def get_trending(
+    type: str = Query("movie", description="Type: movie or tv"),
+    current_user: User = Depends(get_current_user),
+    search_service: MediaSearchService = Depends(get_media_search_service)
+):
+    """
+    Obtenir les médias tendances (TMDB trending).
+    
+    Utilisé pour la page d'accueil (hero et rows).
+    """
+    import httpx
+    
+    if not settings.tmdb_api_key:
+        return {"results": []}
+    
+    media_type = "movie" if type == "movie" else "tv"
+    
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                f"https://api.themoviedb.org/3/trending/{media_type}/week",
+                params={
+                    "api_key": settings.tmdb_api_key,
+                    "language": "fr-FR"
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            results = []
+            for item in data.get("results", [])[:20]:
+                is_movie = media_type == "movie"
+                
+                # Extract date safely
+                date_field = item.get("release_date" if is_movie else "first_air_date") or ""
+                year = int(date_field.split("-")[0]) if date_field and "-" in date_field else None
+                
+                results.append({
+                    "id": str(item["id"]),
+                    "source": "tmdb",
+                    "media_type": "movie" if is_movie else "series",
+                    "title": item.get("title" if is_movie else "name", "Unknown"),
+                    "original_title": item.get("original_title" if is_movie else "original_name"),
+                    "year": year,
+                    "poster_url": f"https://image.tmdb.org/t/p/w500{item['poster_path']}" if item.get("poster_path") else None,
+                    "backdrop_url": f"https://image.tmdb.org/t/p/original{item['backdrop_path']}" if item.get("backdrop_path") else None,
+                    "overview": item.get("overview"),
+                    "rating": item.get("vote_average"),
+                    "vote_count": item.get("vote_count"),
+                    "genres": []
+                })
+            
+            return {"results": results}
+            
+    except Exception as e:
+        import logging
+        logging.error(f"Trending fetch error: {e}")
+        return {"results": []}

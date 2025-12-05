@@ -222,6 +222,40 @@ async def list_requests(
     )
 
 
+@router.get("/me")
+async def get_my_requests(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Obtenir les demandes de l'utilisateur courant.
+    
+    Format simplifié pour le frontend.
+    """
+    query = select(MediaRequest).where(
+        MediaRequest.user_id == current_user.id
+    ).order_by(MediaRequest.created_at.desc())
+    
+    result = await db.execute(query)
+    requests = result.scalars().all()
+    
+    return {
+        "requests": [
+            {
+                "id": str(req.id),
+                "media_type": req.media_type.value if req.media_type else "movie",
+                "title": req.title,
+                "year": req.year,
+                "poster_url": req.poster_url,
+                "status": req.status.value if req.status else "pending",
+                "progress": getattr(req, 'progress', 0) or 0,
+                "created_at": req.created_at.isoformat() if req.created_at else None
+            }
+            for req in requests
+        ]
+    }
+
+
 @router.get("/stats", response_model=UserRequestStats)
 async def get_my_stats(
     current_user: User = Depends(get_current_user),

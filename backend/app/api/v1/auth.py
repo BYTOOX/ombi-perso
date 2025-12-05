@@ -299,3 +299,49 @@ async def update_me(
     await db.refresh(current_user)
     
     return UserResponse.model_validate(current_user)
+
+
+@router.get("/stats")
+async def get_user_stats(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get current user request statistics.
+    
+    Returns remaining requests for today and total counts.
+    """
+    from datetime import date
+    from sqlalchemy import func
+    from ...models import MediaRequest
+    from ...models.request import RequestStatus
+    
+    # Total requests
+    total_query = select(func.count()).where(MediaRequest.user_id == current_user.id)
+    total = (await db.execute(total_query)).scalar() or 0
+    
+    # Pending
+    pending_query = select(func.count()).where(
+        MediaRequest.user_id == current_user.id,
+        MediaRequest.status.in_([RequestStatus.PENDING, RequestStatus.SEARCHING, RequestStatus.DOWNLOADING])
+    )
+    pending = (await db.execute(pending_query)).scalar() or 0
+    
+    # Completed
+    completed_query = select(func.count()).where(
+        MediaRequest.user_id == current_user.id,
+        MediaRequest.status == RequestStatus.COMPLETED
+    )
+    completed = (await db.execute(completed_query)).scalar() or 0
+    
+    # Today's requests
+    today_count = current_user.daily_requests_count if current_user.last_request_date == date.today() else 0
+    max_per_day = settings.max_requests_per_day
+    
+    return {
+        "total_requests": total,
+        "pending_requests": pending,
+        "completed_requests": completed,
+        "requests_today": today_count,
+        "requests_remaining": max_per_day - today_count
+    }
