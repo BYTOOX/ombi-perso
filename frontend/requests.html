@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mes Demandes - Plex Kiosk</title>
+    <meta name="description" content="Suivez l'état de vos demandes de médias">
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar-custom">
+        <div class="container-fluid px-4">
+            <div class="d-flex align-items-center justify-content-between w-100">
+                <a href="/" class="navbar-brand">
+                    <div class="navbar-brand-icon">
+                        <i class="bi bi-film"></i>
+                    </div>
+                    <span class="d-none d-md-inline">Plex Kiosk</span>
+                </a>
+                <div class="user-menu">
+                    <div class="dropdown">
+                        <div class="user-avatar" id="userAvatar" data-bs-toggle="dropdown">U</div>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/requests.html">
+                                    <i class="bi bi-list-check me-2"></i>Mes demandes
+                                </a></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item text-danger" href="#" onclick="logout()">
+                                    <i class="bi bi-box-arrow-right me-2"></i>Déconnexion
+                                </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="requests-container">
+            <!-- Header -->
+            <div class="requests-header">
+                <h1 class="mb-2"><i class="bi bi-list-check me-3 text-primary"></i>Mes Demandes</h1>
+                <p class="text-muted">Suivez l'état de vos demandes de films et séries</p>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="requests-stats" id="statsCards">
+                <div class="stat-card">
+                    <div class="stat-icon primary"><i class="bi bi-hourglass-split"></i></div>
+                    <div class="stat-info">
+                        <h3 id="statPending">0</h3>
+                        <p>En attente</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon warning"><i class="bi bi-download"></i></div>
+                    <div class="stat-info">
+                        <h3 id="statDownloading">0</h3>
+                        <p>En téléchargement</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon success"><i class="bi bi-check-circle"></i></div>
+                    <div class="stat-info">
+                        <h3 id="statCompleted">0</h3>
+                        <p>Terminées</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Tabs -->
+            <div class="filter-tabs mb-4">
+                <button class="filter-tab active" data-status="all">Toutes</button>
+                <button class="filter-tab" data-status="pending">En attente</button>
+                <button class="filter-tab" data-status="downloading">En cours</button>
+                <button class="filter-tab" data-status="completed">Terminées</button>
+            </div>
+
+            <!-- Requests Table -->
+            <div class="requests-table" id="requestsTable">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Média</th>
+                            <th>Type</th>
+                            <th>Statut</th>
+                            <th>Progression</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="requestsBody">
+                        <!-- Loaded dynamically -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state d-none" id="emptyState">
+                <div class="empty-icon">📭</div>
+                <h3 class="empty-title">Aucune demande</h3>
+                <p class="empty-text">Vous n'avez pas encore fait de demandes</p>
+                <a href="/" class="btn btn-primary">
+                    <i class="bi bi-search me-2"></i>Rechercher des médias
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        const API_BASE = '/api/v1';
+        let allRequests = [];
+        let currentFilter = 'all';
+
+        // Check auth
+        document.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            // Set user avatar
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            if (user.username) {
+                document.getElementById('userAvatar').textContent = user.username.charAt(0).toUpperCase();
+            }
+
+            await loadRequests();
+            setupFilters();
+        });
+
+        async function loadRequests() {
+            const token = localStorage.getItem('access_token');
+
+            try {
+                const response = await fetch(`${API_BASE}/requests/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.status === 401) {
+                    localStorage.removeItem('access_token');
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                const data = await response.json();
+                allRequests = data.requests || data || [];
+
+                updateStats();
+                renderRequests();
+
+            } catch (error) {
+                console.error('Error loading requests:', error);
+                showToast('Erreur lors du chargement', 'danger');
+            }
+        }
+
+        function updateStats() {
+            const pending = allRequests.filter(r => r.status === 'pending' || r.status === 'approved').length;
+            const downloading = allRequests.filter(r => r.status === 'downloading').length;
+            const completed = allRequests.filter(r => r.status === 'completed').length;
+
+            document.getElementById('statPending').textContent = pending;
+            document.getElementById('statDownloading').textContent = downloading;
+            document.getElementById('statCompleted').textContent = completed;
+        }
+
+        function renderRequests() {
+            const tbody = document.getElementById('requestsBody');
+            const emptyState = document.getElementById('emptyState');
+            const table = document.getElementById('requestsTable');
+
+            let filtered = allRequests;
+            if (currentFilter !== 'all') {
+                filtered = allRequests.filter(r => {
+                    if (currentFilter === 'pending') return r.status === 'pending' || r.status === 'approved';
+                    if (currentFilter === 'downloading') return r.status === 'downloading';
+                    if (currentFilter === 'completed') return r.status === 'completed';
+                    return true;
+                });
+            }
+
+            if (filtered.length === 0) {
+                table.classList.add('d-none');
+                emptyState.classList.remove('d-none');
+                return;
+            }
+
+            table.classList.remove('d-none');
+            emptyState.classList.add('d-none');
+
+            tbody.innerHTML = filtered.map(request => {
+                const statusBadge = getStatusBadge(request.status);
+                const progress = request.progress || 0;
+                const date = new Date(request.created_at).toLocaleDateString('fr-FR');
+                const posterUrl = request.poster_url || '/static/img/no-poster.png';
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="request-media">
+                                <img src="${posterUrl}" class="request-poster" alt="${request.title}">
+                                <div>
+                                    <div class="request-title">${request.title}</div>
+                                    <div class="request-type">${request.year || ''}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>${getMediaTypeLabel(request.media_type)}</td>
+                        <td>${statusBadge}</td>
+                        <td>
+                            ${request.status === 'downloading' ? `
+                                <div class="progress" style="width: 100px;">
+                                    <div class="progress-bar" style="width: ${progress}%"></div>
+                                </div>
+                                <small class="text-muted">${progress}%</small>
+                            ` : '—'}
+                        </td>
+                        <td>${date}</td>
+                        <td>
+                            ${request.status === 'pending' ? `
+                                <button class="btn btn-sm btn-outline-danger" onclick="cancelRequest('${request.id}')">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            ` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function getStatusBadge(status) {
+            const badges = {
+                'pending': '<span class="status-badge pending"><i class="bi bi-clock"></i> En attente</span>',
+                'approved': '<span class="status-badge approved"><i class="bi bi-check"></i> Approuvée</span>',
+                'downloading': '<span class="status-badge downloading"><i class="bi bi-download"></i> Téléchargement</span>',
+                'completed': '<span class="status-badge completed"><i class="bi bi-check-circle"></i> Terminée</span>',
+                'rejected': '<span class="status-badge rejected"><i class="bi bi-x-circle"></i> Refusée</span>'
+            };
+            return badges[status] || status;
+        }
+
+        function getMediaTypeLabel(type) {
+            const labels = { 'movie': 'Film', 'series': 'Série', 'tv': 'Série', 'anime': 'Animé' };
+            return labels[type] || type;
+        }
+
+        function setupFilters() {
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentFilter = tab.dataset.status;
+                    renderRequests();
+                });
+            });
+        }
+
+        async function cancelRequest(requestId) {
+            if (!confirm('Annuler cette demande ?')) return;
+
+            const token = localStorage.getItem('access_token');
+            try {
+                const response = await fetch(`${API_BASE}/requests/${requestId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    showToast('Demande annulée', 'success');
+                    await loadRequests();
+                } else {
+                    showToast('Erreur lors de l\'annulation', 'danger');
+                }
+            } catch (error) {
+                showToast('Erreur de connexion', 'danger');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user');
+            window.location.href = '/login.html';
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toastId = `toast-${Date.now()}`;
+            container.insertAdjacentHTML('beforeend', `
+                <div id="${toastId}" class="toast bg-${type}" role="alert">
+                    <div class="toast-body">${message}</div>
+                </div>
+            `);
+            const toast = new bootstrap.Toast(document.getElementById(toastId), { delay: 3000 });
+            toast.show();
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadRequests, 30000);
+    </script>
+</body>
+
+</html>

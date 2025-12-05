@@ -63,5 +63,30 @@ def get_sync_db():
 
 
 def init_db():
-    """Initialize database tables."""
+    """Initialize database tables and create default admin."""
+    # Create tables first
     Base.metadata.create_all(bind=engine)
+    
+    # Import here to avoid circular imports
+    from .user import User, UserRole
+    from argon2 import PasswordHasher
+    
+    with SessionLocal() as db:
+        # Check if any admin exists
+        admin = db.query(User).filter(User.role == UserRole.ADMIN).first()
+        if not admin:
+            # Hash password using argon2
+            ph = PasswordHasher()
+            admin_hash = ph.hash("admin")
+            
+            # Create default admin
+            default_admin = User(
+                username="admin",
+                email="admin@plex-kiosk.local",
+                hashed_password=admin_hash,
+                role=UserRole.ADMIN,
+                is_active=True
+            )
+            db.add(default_admin)
+            db.commit()
+            print("✓ Default admin user created (admin/admin)")

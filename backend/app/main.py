@@ -79,7 +79,9 @@ async def health_check():
 
 
 # Static files & SPA fallback
-frontend_path = Path(__file__).parent.parent.parent / "frontend"
+# In Docker: /app/app/main.py -> /app/frontend/
+# Locally: backend/app/main.py -> frontend/
+frontend_path = Path(__file__).parent.parent / "frontend"
 
 if frontend_path.exists():
     # Serve static files
