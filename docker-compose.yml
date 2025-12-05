@@ -5,9 +5,11 @@ services:
   # PLEX KIOSK - Main Application
   # ===========================================================================
   plex-kiosk:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/bytoox/ombi-perso:main
+    # To build locally instead, uncomment below and comment image above:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     container_name: plex-kiosk
     restart: unless-stopped
     ports:
