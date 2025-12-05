@@ -7,7 +7,7 @@ services:
   plex-kiosk:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: Dockerfile
     container_name: plex-kiosk
     restart: unless-stopped
     ports:
