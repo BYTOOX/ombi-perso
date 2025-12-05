@@ -7,7 +7,6 @@ from plexapi.server import PlexServer
 from plexapi.exceptions import NotFound, Unauthorized
 
 from ..config import get_settings
-from ..schemas.media import MediaSearchResult
 
 logger = logging.getLogger(__name__)
 

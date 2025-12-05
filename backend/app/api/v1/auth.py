@@ -16,8 +16,8 @@ from ...config import get_settings
 from ...models import get_db, User
 from ...models.user import UserRole
 from ...schemas.user import (
-    UserCreate, UserLogin, UserResponse, UserUpdate,
-    Token, TokenData, PlexAuth
+    UserCreate, UserResponse, UserUpdate,
+    Token, PlexAuth
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])

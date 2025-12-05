@@ -2,7 +2,6 @@
 Database configuration with SQLite.
 Async-ready with SQLAlchemy 2.0.
 """
-from contextlib import asynccontextmanager
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker

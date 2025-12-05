@@ -385,7 +385,7 @@ Réponds UNIQUEMENT avec le chemin, rien d'autre.
         try:
             response = await self.client.get(f"{self.settings.ollama_url}/api/tags")
             return response.status_code == 200
-        except:
+        except Exception:
             return False
 
 

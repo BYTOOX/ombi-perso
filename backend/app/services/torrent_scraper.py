@@ -3,9 +3,8 @@ YGGtorrent scraper with FlareSolverr for Cloudflare bypass.
 """
 import re
 import logging
-from datetime import datetime
-from typing import List, Optional, Dict, Any
-from urllib.parse import urljoin, quote_plus
+from typing import List, Optional, Any
+from urllib.parse import quote_plus
 import httpx
 from bs4 import BeautifulSoup
 
@@ -298,7 +297,7 @@ class TorrentScraperService:
             if "/" in date_text:
                 from datetime import datetime
                 return datetime.strptime(date_text, "%d/%m/%Y").date()
-        except:
+        except Exception:
             pass
         return None
     

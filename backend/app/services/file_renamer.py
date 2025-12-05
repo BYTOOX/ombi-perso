@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from ..config import get_settings
-from ..schemas.media import MediaSearchResult
 from ..models.request import MediaType
 
 logger = logging.getLogger(__name__)
