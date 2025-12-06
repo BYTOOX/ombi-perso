@@ -36,6 +36,9 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False
 )
 
+# Alias for pipeline service
+async_session_factory = AsyncSessionLocal
+
 
 class Base(DeclarativeBase):
     """Base class for all models."""
@@ -68,7 +71,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     
     # Import here to avoid circular imports
-    from .user import User, UserRole
+    from .user import User, UserRole, UserStatus
     from argon2 import PasswordHasher
     
     with SessionLocal() as db:
@@ -79,14 +82,16 @@ def init_db():
             ph = PasswordHasher()
             admin_hash = ph.hash("admin")
             
-            # Create default admin
+            # Create default admin (ACTIVE status)
             default_admin = User(
                 username="admin",
                 email="admin@plex-kiosk.local",
                 hashed_password=admin_hash,
                 role=UserRole.ADMIN,
+                status=UserStatus.ACTIVE,
                 is_active=True
             )
             db.add(default_admin)
             db.commit()
             print("✓ Default admin user created (admin/admin)")
+

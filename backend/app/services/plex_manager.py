@@ -23,19 +23,41 @@ class PlexManagerService:
     def __init__(self):
         self.settings = get_settings()
         self._server: Optional[PlexServer] = None
+        self._connection_failed = False  # Cache connection failures
+    
+    def _is_configured(self) -> bool:
+        """Check if Plex is properly configured (not placeholder values)."""
+        url = self.settings.plex_url
+        token = self.settings.plex_token
+        if not url or not token:
+            return False
+        # Detect placeholder values
+        placeholders = ['your-', 'example', 'xxx', 'placeholder', 'your_']
+        url_lower = url.lower()
+        token_lower = token.lower()
+        for placeholder in placeholders:
+            if placeholder in url_lower or placeholder in token_lower:
+                return False
+        return True
     
     @property
     def server(self) -> Optional[PlexServer]:
         """Get Plex server connection."""
+        # Skip if already failed or not configured
+        if self._connection_failed or not self._is_configured():
+            return None
+            
         if self._server is None and self.settings.plex_url and self.settings.plex_token:
             try:
                 self._server = PlexServer(
                     self.settings.plex_url,
-                    self.settings.plex_token
+                    self.settings.plex_token,
+                    timeout=5  # 5 second timeout
                 )
                 logger.info(f"Connected to Plex: {self._server.friendlyName}")
             except Exception as e:
                 logger.error(f"Failed to connect to Plex: {e}")
+                self._connection_failed = True  # Don't retry on subsequent calls
                 return None
         return self._server
     
@@ -262,17 +284,20 @@ class PlexManagerService:
     # =========================================================================
     
     def health_check(self) -> Dict[str, Any]:
-        """Check Plex connection status."""
+        """Check Plex connection status using cached connection."""
         if not self.settings.plex_url or not self.settings.plex_token:
             return {"status": "not_configured", "message": "Plex credentials not set"}
         
         try:
-            server = PlexServer(self.settings.plex_url, self.settings.plex_token)
+            # Use cached server connection instead of creating new one
+            if self.server is None:
+                return {"status": "error", "message": "Could not connect to Plex"}
+            
             return {
                 "status": "ok",
-                "server_name": server.friendlyName,
-                "version": server.version,
-                "libraries_count": len(server.library.sections())
+                "server_name": self.server.friendlyName,
+                "version": self.server.version,
+                "libraries_count": len(self.server.library.sections())
             }
         except Unauthorized:
             return {"status": "error", "message": "Invalid Plex token"}
@@ -280,6 +305,14 @@ class PlexManagerService:
             return {"status": "error", "message": str(e)}
 
 
+# Singleton instance for connection reuse
+_plex_manager_service: Optional[PlexManagerService] = None
+
+
 def get_plex_manager_service() -> PlexManagerService:
-    """Get Plex manager service instance."""
-    return PlexManagerService()
+    """Get Plex manager service singleton instance (reuses connection)."""
+    global _plex_manager_service
+    if _plex_manager_service is None:
+        _plex_manager_service = PlexManagerService()
+    return _plex_manager_service
+

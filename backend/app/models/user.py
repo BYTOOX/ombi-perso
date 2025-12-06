@@ -17,6 +17,13 @@ class UserRole(str, Enum):
     USER = "user"
 
 
+class UserStatus(str, Enum):
+    """User account status."""
+    ACTIVE = "active"       # Can login and make requests
+    PENDING = "pending"     # Awaiting admin approval
+    DISABLED = "disabled"   # Account disabled by admin
+
+
 class User(Base):
     """User model with Plex SSO support."""
     
@@ -34,7 +41,8 @@ class User(Base):
     
     # Role & status
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), default=UserRole.USER)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[UserStatus] = mapped_column(SQLEnum(UserStatus), default=UserStatus.PENDING)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)  # Legacy, keep for compatibility
     
     # Request limits
     daily_requests_count: Mapped[int] = mapped_column(Integer, default=0)

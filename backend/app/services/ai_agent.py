@@ -61,21 +61,36 @@ class AIAgentService:
             Sorted list of torrents with AI scores
         """
         if not torrents:
+            logger.warning(f"[AI] No torrents to score")
             return []
+        
+        logger.info(f"[AI] Scoring {len(torrents)} torrents for: {media.title}")
+        logger.info(f"[AI] Quality preference: {quality_preference}")
         
         # For small lists, use simpler scoring
         if len(torrents) <= 3:
+            logger.info(f"[AI] Using simple scoring (≤3 torrents)")
             return self._simple_score_torrents(torrents, quality_preference)
         
         # Use AI for larger lists
+        logger.info(f"[AI] Using Ollama for scoring ({len(torrents)} torrents)")
         prompt = self._build_scoring_prompt(media, torrents, quality_preference)
         
         try:
             response = await self._query_ollama(prompt)
+            logger.info(f"[AI] Ollama response received ({len(response)} chars)")
+            
             scored_torrents = self._parse_scoring_response(response, torrents)
-            return sorted(scored_torrents, key=lambda t: t.ai_score or 0, reverse=True)
+            sorted_torrents = sorted(scored_torrents, key=lambda t: t.ai_score or 0, reverse=True)
+            
+            logger.info(f"[AI] Top 3 scored torrents:")
+            for i, t in enumerate(sorted_torrents[:3], 1):
+                logger.info(f"  [{i}] Score: {t.ai_score} - {t.name[:60]}...")
+            
+            return sorted_torrents
         except Exception as e:
-            logger.error(f"AI scoring error: {e}")
+            logger.error(f"[AI] Ollama scoring failed: {e}")
+            logger.info(f"[AI] Falling back to simple scoring")
             return self._simple_score_torrents(torrents, quality_preference)
     
     async def select_best_torrent(
@@ -85,7 +100,10 @@ class AIAgentService:
         quality_preference: str = "1080p"
     ) -> Optional[TorrentResult]:
         """Select the best torrent from the list."""
+        logger.info(f"[AI] select_best_torrent called for: {media.title}")
         scored = await self.score_torrents(media, torrents, quality_preference)
+        if scored:
+            logger.info(f"[AI] Best torrent selected: {scored[0].name}")
         return scored[0] if scored else None
     
     def _build_scoring_prompt(
@@ -162,8 +180,11 @@ Réponds UNIQUEMENT avec un JSON (pas de texte avant/après):
         quality_preference: str
     ) -> List[TorrentResult]:
         """Simple rule-based scoring fallback."""
+        logger.info(f"[AI] Running simple rule-based scoring...")
+        
         for t in torrents:
             score = 50  # Base score
+            reasons = []
             
             # Quality bonus
             if t.quality == quality_preference:
@@ -353,31 +374,62 @@ Réponds UNIQUEMENT avec le chemin, rien d'autre.
     async def _query_ollama(self, prompt: str) -> str:
         """Query Ollama API."""
         if not self.settings.ollama_url:
+            logger.error(f"[AI] Ollama URL not configured!")
             raise ValueError("Ollama URL not configured")
+        
+        logger.info(f"[AI] Querying Ollama at: {self.settings.ollama_url}")
+        logger.info(f"[AI] Model: {self.settings.ollama_model}")
+        logger.info(f"[AI] Prompt length: {len(prompt)} chars")
         
         payload = {
             "model": self.settings.ollama_model,
             "prompt": prompt,
             "stream": False,
             "options": {
-                "temperature": 0.3,  # Lower for more deterministic output
-                "num_predict": 500
+                "temperature": 0.7,  # Qwen3 recommended for non-thinking mode
+                "top_p": 0.8,
+                "top_k": 20,
+                "num_predict": 1000
             }
         }
         
         try:
+            logger.info(f"[AI] Sending request to Ollama (timeout: 120s)...")
             response = await self.client.post(
                 f"{self.settings.ollama_url}/api/generate",
                 json=payload
             )
+            logger.info(f"[AI] Ollama response status: {response.status_code}")
             response.raise_for_status()
             data = response.json()
-            return data.get("response", "")
+            
+            # Debug: log raw response keys
+            logger.info(f"[AI] Raw response keys: {list(data.keys())}")
+            
+            result = data.get("response", "")
+            logger.info(f"[AI] Ollama response received ({len(result)} chars)")
+            
+            # Strip <think>...</think> tags from qwen3 responses
+            if "<think>" in result:
+                # Remove thinking content
+                result = re.sub(r'<think>[\s\S]*?</think>', '', result, flags=re.IGNORECASE)
+                result = result.strip()
+                logger.info(f"[AI] Stripped thinking tags, remaining: {len(result)} chars")
+            
+            logger.info(f"[AI] Ollama response: {result[:200]}..." if len(result) > 200 else f"[AI] Ollama response: {result}")
+            
+            return result
         except httpx.HTTPStatusError as e:
-            logger.error(f"Ollama HTTP error: {e}")
+            logger.error(f"[AI] Ollama HTTP error: {e.response.status_code}")
+            logger.error(f"[AI] Response body: {e.response.text[:500]}")
+            raise
+        except httpx.TimeoutException:
+            logger.error(f"[AI] Ollama request timed out after 120 seconds")
             raise
         except Exception as e:
-            logger.error(f"Ollama error: {e}")
+            logger.error(f"[AI] Ollama error: {e}")
+            import traceback
+            logger.error(f"[AI] Traceback: {traceback.format_exc()}")
             raise
     
     async def health_check(self) -> bool:

@@ -1587,3 +1587,316 @@ a:hover {
         margin: 0 16px;
     }
 }
+
+/* -----------------------------------------------------------------------------
+   ADMIN PANEL STYLES
+   ----------------------------------------------------------------------------- */
+
+/* Admin Container */
+.admin-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 24px 48px;
+}
+
+/* Admin Cards */
+.admin-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.admin-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.admin-card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+}
+
+.admin-card-title i {
+    color: var(--primary);
+}
+
+/* Stat Cards */
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    transition: all var(--transition-normal);
+}
+
+.stat-card:hover {
+    border-color: var(--primary);
+    box-shadow: 0 0 20px var(--primary-glow);
+}
+
+.stat-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.stat-icon.primary {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.1));
+    color: var(--primary);
+}
+
+.stat-icon.success {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1));
+    color: var(--success);
+}
+
+.stat-icon.warning {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.1));
+    color: var(--warning);
+}
+
+.stat-icon.danger {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
+    color: var(--danger);
+}
+
+.stat-icon.info {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1));
+    color: var(--info);
+}
+
+.stat-info h3 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 4px 0;
+    line-height: 1;
+}
+
+.stat-info p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+/* Tables - Dark Theme Override */
+.table {
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--text-primary);
+    --bs-table-border-color: var(--border-color);
+    --bs-table-striped-bg: rgba(255, 255, 255, 0.02);
+    --bs-table-striped-color: var(--text-primary);
+    --bs-table-hover-bg: rgba(255, 255, 255, 0.05);
+    --bs-table-hover-color: var(--text-primary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+.table th {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border-color);
+    padding: 14px 16px;
+}
+
+.table td {
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 16px;
+    vertical-align: middle;
+}
+
+.table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.table-hover>tbody>tr:hover>* {
+    --bs-table-color-state: var(--text-primary);
+    --bs-table-bg-state: rgba(255, 255, 255, 0.05);
+}
+
+/* Bootstrap Tab Override for Dark Theme */
+.nav-tabs {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.nav-tabs .nav-link {
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    padding: 12px 24px;
+    font-weight: 500;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+    border: none;
+}
+
+.nav-tabs .nav-link.active {
+    color: var(--primary);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--primary);
+}
+
+/* Tab Content */
+.tab-content {
+    color: var(--text-primary);
+}
+
+/* Form Controls in Dark Theme */
+.modal-content .form-control,
+.modal-content .form-select {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.modal-content .form-control:focus,
+.modal-content .form-select:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+    color: var(--text-primary);
+}
+
+.modal-content .form-control::placeholder {
+    color: var(--text-muted);
+}
+
+.modal-content .form-label {
+    color: var(--text-secondary);
+}
+
+.modal-content .form-text {
+    color: var(--text-muted);
+}
+
+/* Select Dropdown Dark Theme */
+.form-select option {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+}
+
+/* Toast Override */
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+}
+
+.toast {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: white;
+}
+
+.toast.bg-success {
+    background: rgba(16, 185, 129, 0.9) !important;
+    border-color: var(--success);
+}
+
+.toast.bg-danger {
+    background: rgba(239, 68, 68, 0.9) !important;
+    border-color: var(--danger);
+}
+
+.toast.bg-warning {
+    background: rgba(245, 158, 11, 0.9) !important;
+    border-color: var(--warning);
+    color: #000;
+}
+
+.toast.bg-info {
+    background: rgba(59, 130, 246, 0.9) !important;
+    border-color: var(--info);
+}
+
+/* Button Group Styling */
+.btn-group-sm>.btn {
+    padding: 6px 12px;
+}
+
+.btn-outline-secondary {
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
+.btn-outline-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+}
+
+.btn-outline-danger {
+    border-color: rgba(239, 68, 68, 0.5);
+    color: var(--danger);
+}
+
+.btn-outline-danger:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+/* Row/Column Utilities for Admin Grid */
+.row.g-4 {
+    --bs-gutter-x: 1.5rem;
+    --bs-gutter-y: 1.5rem;
+}
+
+/* List Unstyled in Dark Theme */
+.list-unstyled li {
+    padding: 8px 0;
+    color: var(--text-secondary);
+}
+
+.list-unstyled li strong {
+    color: var(--text-primary);
+}
+
+/* Config Display */
+#configDisplay h5 {
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+
+#configDisplay h5 i {
+    color: var(--primary);
+}
+
+/* Spinner Color */
+.spinner-border-sm {
+    color: var(--primary);
+}
+
+/* Dark modal background */
+.modal-content.bg-dark {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border-color);
+}

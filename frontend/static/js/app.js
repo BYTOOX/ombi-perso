@@ -99,7 +99,7 @@ const api = {
 
     // Search endpoints
     async search(query, type = 'all') {
-        const params = new URLSearchParams({ query });
+        const params = new URLSearchParams({ q: query });
         if (type !== 'all') {
             params.append('type', type);
         }
@@ -403,11 +403,11 @@ async function loadTrendingContent() {
     try {
         // Load trending movies
         const trendingMovies = await api.getTrending('movie');
-        state.trending.movies = trendingMovies?.results || [];
+        state.trending.movies = Array.isArray(trendingMovies) ? trendingMovies : (trendingMovies?.results || []);
 
         // Load trending series
         const trendingSeries = await api.getTrending('tv');
-        state.trending.series = trendingSeries?.results || [];
+        state.trending.series = Array.isArray(trendingSeries) ? trendingSeries : (trendingSeries?.results || []);
 
         // Render content
         let html = '';
@@ -469,7 +469,8 @@ async function performSearch(query, type = 'all') {
 
         try {
             const results = await api.search(query, type);
-            state.searchResults = results?.results || [];
+            // API returns direct array, not { results: [...] }
+            state.searchResults = Array.isArray(results) ? results : (results?.results || []);
 
             if (mainContent) {
                 mainContent.innerHTML = UI.createSearchResults(state.searchResults);
@@ -573,11 +574,13 @@ async function requestMedia() {
 
     try {
         await api.createRequest({
-            media_id: state.selectedMedia.id,
+            external_id: String(state.selectedMedia.id),
             media_type: state.selectedMedia.media_type,
             title: state.selectedMedia.title,
             year: state.selectedMedia.year,
             poster_url: state.selectedMedia.poster_url,
+            overview: state.selectedMedia.overview || null,
+            quality_preference: '1080p',
             source: state.selectedMedia.source || 'tmdb'
         });
 

@@ -1,6 +1,8 @@
 """
 Media request endpoints.
 """
+import asyncio
+import logging
 from datetime import date
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
@@ -16,23 +18,30 @@ from ...schemas.request import (
 )
 from ...services.notifications import get_notification_service
 from ...services.plex_manager import get_plex_manager_service
+from ...services.pipeline import process_request_async
 from .auth import get_current_user, get_current_admin
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/requests", tags=["Requests"])
 settings = get_settings()
 
 
+def run_async_in_background(coro):
+    """Run async coroutine in background."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(coro)
+        else:
+            loop.run_until_complete(coro)
+    except RuntimeError:
+        asyncio.run(coro)
+
+
 async def process_request_background(request_id: int):
-    """Background task to process a media request."""
-    # This will be expanded to handle the full workflow:
-    # 1. Search torrents
-    # 2. AI scoring
-    # 3. Add to qBittorrent
-    # 4. Monitor progress
-    # 5. Rename and move files
-    # 6. Scan Plex
-    # 7. Notify user
-    pass
+    """Background task to process a media request through the pipeline."""
+    await process_request_async(request_id)
 
 
 @router.post("", response_model=RequestResponse, status_code=201)
@@ -45,10 +54,10 @@ async def create_request(
     """
     Créer une nouvelle demande de média.
     
-    Limite: 10 demandes par jour par utilisateur.
+    Limite: 10 demandes par jour par utilisateur (admins exemptés).
     """
-    # Check daily limit
-    if not current_user.can_make_request(settings.max_requests_per_day):
+    # Check daily limit (admins are exempt)
+    if not current_user.is_admin and not current_user.can_make_request(settings.max_requests_per_day):
         raise HTTPException(
             status_code=429,
             detail=f"Limite quotidienne atteinte ({settings.max_requests_per_day} demandes/jour)"

@@ -12,12 +12,10 @@ from pathlib import Path
 from .config import get_settings
 from .models.database import init_db
 from .api.v1 import auth_router, search_router, requests_router, admin_router
+from .logging_config import setup_logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+# Configure logging with file handlers and module separation
+setup_logging()
 logger = logging.getLogger(__name__)
 
 settings = get_settings()

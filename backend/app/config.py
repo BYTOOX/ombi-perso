@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     tmdb_api_key: Optional[str] = Field(default=None, description="TMDB API key")
     
     # YGGtorrent
+    ygg_base_url: str = Field(default="https://www.yggtorrent.top", description="YGGtorrent base URL (changes frequently)")
     ygg_username: Optional[str] = Field(default=None, description="YGG username")
     ygg_password: Optional[str] = Field(default=None, description="YGG password")
     ygg_passkey: Optional[str] = Field(default=None, description="YGG passkey for direct torrent links")

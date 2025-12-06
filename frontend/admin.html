@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-bs-theme="dark">
 
 <head>
     <meta charset="UTF-8">
@@ -16,45 +16,201 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
-    <!-- Custom Styles -->
-    <link rel="stylesheet" href="/static/css/styles.css">
+
     <style>
-        .admin-grid {
-            display: grid;
-            grid-template-columns: repeat(12, 1fr);
-            gap: 24px;
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: rgba(20, 20, 35, 0.95);
+            --primary: #8b5cf6;
+            --primary-glow: rgba(139, 92, 246, 0.4);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #3b82f6;
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --border-color: rgba(255, 255, 255, 0.1);
         }
 
-        .col-4 {
-            grid-column: span 4;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
-        .col-6 {
-            grid-column: span 6;
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0a0a0f 0%, #050508 100%);
+            color: #ffffff;
+            min-height: 100vh;
         }
 
-        .col-8 {
-            grid-column: span 8;
+        /* Navbar */
+        .navbar-admin {
+            background: rgba(10, 10, 15, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
         }
 
-        .col-12 {
-            grid-column: span 12;
+        .navbar-brand-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary), #6366f1);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
         }
 
-        @media (max-width: 992px) {
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary), #6366f1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
 
-            .col-4,
-            .col-6,
-            .col-8 {
-                grid-column: span 12;
-            }
+        /* Main Content */
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: 32px;
+        }
+
+        .page-header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .page-header p {
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        /* Stat Cards */
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            height: 100%;
+        }
+
+        .stat-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .stat-icon.primary {
+            background: rgba(139, 92, 246, 0.2);
+            color: var(--primary);
+        }
+
+        .stat-icon.success {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .stat-icon.warning {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        .stat-icon.info {
+            background: rgba(59, 130, 246, 0.2);
+            color: var(--info);
+        }
+
+        .stat-info h3 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+            margin: 0 0 4px 0;
+            line-height: 1;
+        }
+
+        .stat-info p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin: 0;
+        }
+
+        /* Admin Cards */
+        .admin-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            height: 100%;
+        }
+
+        .admin-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .admin-card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0;
+        }
+
+        .admin-card-title i {
+            color: var(--primary);
+        }
+
+        /* Health Indicators */
+        .health-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+            color: #fff;
+        }
+
+        .health-row:last-child {
+            border-bottom: none;
         }
 
         .health-indicator {
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            display: inline-block;
         }
 
         .health-indicator.healthy {
@@ -67,210 +223,611 @@
             box-shadow: 0 0 10px var(--danger);
         }
 
-        .activity-item {
+        /* Pending User Card */
+        .pending-user-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
             display: flex;
+            align-items: center;
             gap: 16px;
-            padding: 12px 0;
-            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 12px;
         }
 
-        .activity-item:last-child {
-            border-bottom: none;
-        }
-
-        .activity-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
+        .pending-user-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), #6366f1);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
+            color: white;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .pending-user-info {
+            flex-grow: 1;
+        }
+
+        .pending-user-info strong {
+            color: #fff;
+            display: block;
+        }
+
+        .pending-user-info small {
+            color: var(--text-muted);
+        }
+
+        /* Nav Tabs */
+        .nav-tabs-custom {
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
+        }
+
+        .nav-tabs-custom .nav-link {
+            border: none;
+            padding: 12px 24px;
+            color: var(--text-muted);
+            font-weight: 500;
+            background: transparent;
+        }
+
+        .nav-tabs-custom .nav-link:hover {
+            color: #fff;
+        }
+
+        .nav-tabs-custom .nav-link.active {
+            color: var(--primary);
+            background: transparent;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        /* Tables */
+        .table-dark-custom {
+            background: transparent;
+            color: #fff;
+        }
+
+        .table-dark-custom th {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border-color);
+            padding: 14px 16px;
+        }
+
+        .table-dark-custom td {
+            color: #fff;
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px;
+            vertical-align: middle;
+        }
+
+        .table-dark-custom tbody tr:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-flex;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-badge.active {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .status-badge.pending {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+        }
+
+        .status-badge.disabled {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        /* Buttons */
+        .btn-primary-custom {
+            background: linear-gradient(135deg, var(--primary), #7c3aed);
+            border: none;
+            color: white;
+        }
+
+        .btn-primary-custom:hover {
+            background: linear-gradient(135deg, #a78bfa, var(--primary));
+            color: white;
+        }
+
+        /* Modal */
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: #fff;
+        }
+
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-footer {
+            border-top: 1px solid var(--border-color);
+        }
+
+        .form-control,
+        .form-select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: #fff;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+            color: #fff;
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+        }
+
+        .form-text {
+            color: var(--text-muted);
+        }
+
+        .form-select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+
+        /* Toasts */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 9999;
+        }
+
+        /* Config Display */
+        .config-section h5 {
+            color: #fff;
+            margin-bottom: 16px;
+        }
+
+        .config-section h5 i {
+            color: var(--primary);
+        }
+
+        .config-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .config-list li {
+            padding: 8px 0;
+            color: var(--text-secondary);
+        }
+
+        .config-list li strong {
+            color: #fff;
         }
     </style>
 </head>
 
 <body>
     <!-- Navbar -->
-    <nav class="navbar-custom">
-        <div class="container-fluid px-4">
-            <div class="d-flex align-items-center justify-content-between w-100">
-                <a href="/" class="navbar-brand">
-                    <div class="navbar-brand-icon">
-                        <i class="bi bi-film"></i>
-                    </div>
-                    <span class="d-none d-md-inline">Plex Kiosk</span>
+    <nav class="navbar-admin">
+        <div class="d-flex align-items-center justify-content-between">
+            <a href="/" class="d-flex align-items-center gap-3 text-decoration-none">
+                <div class="navbar-brand-icon">
+                    <i class="bi bi-film"></i>
+                </div>
+                <span class="text-white fw-bold fs-5 d-none d-md-inline">Plex Kiosk</span>
+            </a>
+            <div class="d-flex align-items-center gap-3">
+                <a href="/" class="btn btn-outline-light btn-sm">
+                    <i class="bi bi-arrow-left me-2"></i>Retour
                 </a>
-                <div class="d-flex gap-3">
-                    <a href="/" class="btn btn-secondary">
-                        <i class="bi bi-arrow-left me-2"></i>Retour
-                    </a>
-                    <div class="dropdown">
-                        <div class="user-avatar" id="userAvatar" data-bs-toggle="dropdown">A</div>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item text-danger" href="#" onclick="logout()">
-                                    <i class="bi bi-box-arrow-right me-2"></i>Déconnexion
-                                </a></li>
-                        </ul>
-                    </div>
+                <div class="dropdown">
+                    <div class="user-avatar" id="userAvatar" data-bs-toggle="dropdown">A</div>
+                    <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark">
+                        <li><a class="dropdown-item text-danger" href="#" onclick="logout()">
+                                <i class="bi bi-box-arrow-right me-2"></i>Déconnexion
+                            </a></li>
+                    </ul>
                 </div>
             </div>
         </div>
     </nav>
 
     <!-- Main Content -->
-    <main class="main-content">
-        <div class="admin-container">
-            <!-- Header -->
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <div>
-                    <h1 class="mb-1"><i class="bi bi-speedometer2 me-3 text-primary"></i>Dashboard Admin</h1>
-                    <p class="text-muted mb-0">Gérez les utilisateurs, demandes et paramètres système</p>
-                </div>
-                <button class="btn btn-primary" onclick="refreshAll()">
-                    <i class="bi bi-arrow-clockwise me-2"></i>Actualiser
+    <main class="main-container">
+        <!-- Page Header -->
+        <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <h1><i class="bi bi-speedometer2 me-2" style="color: var(--primary)"></i>Dashboard Admin</h1>
+                <p>Gérez les utilisateurs, demandes et paramètres système</p>
+            </div>
+            <button class="btn btn-primary-custom" onclick="refreshAll()">
+                <i class="bi bi-arrow-clockwise me-2"></i>Actualiser
+            </button>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs-custom" id="adminTabs">
+            <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#dashboardTab">
+                    <i class="bi bi-speedometer2 me-2"></i>Dashboard
                 </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#usersTab">
+                    <i class="bi bi-people me-2"></i>Utilisateurs
+                    <span class="badge bg-warning ms-1" id="pendingUsersBadge" style="display:none;">0</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#requestsTab">
+                    <i class="bi bi-list-check me-2"></i>Demandes
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#configTab">
+                    <i class="bi bi-gear me-2"></i>Configuration
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#logsTab">
+                    <i class="bi bi-terminal me-2"></i>Logs
+                    <span class="badge bg-danger ms-1" id="logsErrorBadge" style="display:none;">0</span>
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Dashboard Tab -->
+            <div class="tab-pane fade show active" id="dashboardTab">
+                <!-- Stats Row -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon primary"><i class="bi bi-people"></i></div>
+                            <div class="stat-info">
+                                <h3 id="totalUsers">0</h3>
+                                <p>Utilisateurs</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon warning"><i class="bi bi-person-plus"></i></div>
+                            <div class="stat-info">
+                                <h3 id="pendingUsersCount">0</h3>
+                                <p>En attente</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon info"><i class="bi bi-hourglass-split"></i></div>
+                            <div class="stat-info">
+                                <h3 id="pendingRequests">0</h3>
+                                <p>Demandes</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon success"><i class="bi bi-check-circle"></i></div>
+                            <div class="stat-info">
+                                <h3 id="completedToday">0</h3>
+                                <p>Terminées</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Health & Pending Row -->
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-heart-pulse"></i>État du Système</h3>
+                            </div>
+                            <div id="healthChecks">
+                                <div class="health-row">
+                                    <span><i class="bi bi-database me-2"></i>Base de données</span>
+                                    <span class="health-indicator healthy"></span>
+                                </div>
+                                <div class="health-row">
+                                    <span><i class="bi bi-download me-2"></i>qBittorrent</span>
+                                    <span class="health-indicator" id="qbitHealth"></span>
+                                </div>
+                                <div class="health-row">
+                                    <span><i class="bi bi-play-circle me-2"></i>Plex</span>
+                                    <span class="health-indicator" id="plexHealth"></span>
+                                </div>
+                                <div class="health-row">
+                                    <span><i class="bi bi-robot me-2"></i>Ollama AI</span>
+                                    <span class="health-indicator" id="ollamaHealth"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-person-plus"></i>Utilisateurs en Attente
+                                </h3>
+                            </div>
+                            <div id="pendingUsersQuick">
+                                <div class="text-center py-4 text-muted">
+                                    <i class="bi bi-check-circle fs-1 mb-2 d-block"></i>
+                                    Aucun utilisateur en attente
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div class="admin-grid">
-                <!-- Stats Cards -->
-                <div class="col-4">
-                    <div class="stat-card">
-                        <div class="stat-icon primary"><i class="bi bi-people"></i></div>
-                        <div class="stat-info">
-                            <h3 id="totalUsers">0</h3>
-                            <p>Utilisateurs</p>
-                        </div>
+            <!-- Users Tab -->
+            <div class="tab-pane fade" id="usersTab">
+                <!-- Pending Section -->
+                <div class="admin-card mb-4" id="pendingUsersSection" style="display:none;">
+                    <div class="admin-card-header">
+                        <h3 class="admin-card-title"><i class="bi bi-person-plus" style="color:var(--warning)"></i>En
+                            attente d'approbation</h3>
                     </div>
-                </div>
-                <div class="col-4">
-                    <div class="stat-card">
-                        <div class="stat-icon warning"><i class="bi bi-hourglass-split"></i></div>
-                        <div class="stat-info">
-                            <h3 id="pendingRequests">0</h3>
-                            <p>Demandes en attente</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-4">
-                    <div class="stat-card">
-                        <div class="stat-icon success"><i class="bi bi-check-circle"></i></div>
-                        <div class="stat-info">
-                            <h3 id="completedToday">0</h3>
-                            <p>Terminées aujourd'hui</p>
-                        </div>
-                    </div>
+                    <div id="pendingUsersList"></div>
                 </div>
 
-                <!-- System Health -->
-                <div class="col-6">
-                    <div class="admin-card">
-                        <div class="admin-card-header">
-                            <h3 class="admin-card-title"><i class="bi bi-heart-pulse"></i>État du Système</h3>
-                        </div>
-                        <div id="healthChecks">
-                            <div class="d-flex justify-content-between align-items-center py-2">
-                                <span><i class="bi bi-database me-2"></i>Base de données</span>
-                                <span class="health-indicator healthy"></span>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center py-2">
-                                <span><i class="bi bi-hdd-network me-2"></i>Redis</span>
-                                <span class="health-indicator" id="redisHealth"></span>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center py-2">
-                                <span><i class="bi bi-cloud me-2"></i>TMDB API</span>
-                                <span class="health-indicator" id="tmdbHealth"></span>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center py-2">
-                                <span><i class="bi bi-download me-2"></i>qBittorrent</span>
-                                <span class="health-indicator" id="qbitHealth"></span>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center py-2">
-                                <span><i class="bi bi-play-circle me-2"></i>Plex</span>
-                                <span class="health-indicator" id="plexHealth"></span>
-                            </div>
+                <!-- All Users -->
+                <div class="admin-card">
+                    <div class="admin-card-header">
+                        <h3 class="admin-card-title"><i class="bi bi-people"></i>Tous les Utilisateurs</h3>
+                        <button class="btn btn-primary-custom btn-sm" onclick="showCreateUserModal()">
+                            <i class="bi bi-person-plus me-1"></i>Créer
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-dark-custom">
+                            <thead>
+                                <tr>
+                                    <th>Utilisateur</th>
+                                    <th>Email</th>
+                                    <th>Rôle</th>
+                                    <th>Statut</th>
+                                    <th>Demandes</th>
+                                    <th>Créé le</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersBody">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4">
+                                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Requests Tab -->
+            <div class="tab-pane fade" id="requestsTab">
+                <div class="admin-card">
+                    <div class="admin-card-header">
+                        <h3 class="admin-card-title"><i class="bi bi-list-check"></i>Toutes les Demandes</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-dark-custom">
+                            <thead>
+                                <tr>
+                                    <th>Média</th>
+                                    <th>Utilisateur</th>
+                                    <th>Statut</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="requestsBody">
+                                <tr>
+                                    <td colspan="5" class="text-center py-4">
+                                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Config Tab -->
+            <div class="tab-pane fade" id="configTab">
+                <div class="admin-card">
+                    <div class="admin-card-header">
+                        <h3 class="admin-card-title"><i class="bi bi-gear"></i>Configuration Actuelle</h3>
+                    </div>
+                    <div id="configDisplay">
+                        <div class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-primary"></div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Recent Activity -->
-                <div class="col-6">
-                    <div class="admin-card">
-                        <div class="admin-card-header">
-                            <h3 class="admin-card-title"><i class="bi bi-activity"></i>Activité Récente</h3>
-                        </div>
-                        <div id="activityFeed">
-                            <div class="text-center py-4 text-muted">
-                                <i class="bi bi-clock-history fs-1 mb-2 d-block"></i>
-                                Aucune activité récente
+            <!-- Logs Tab -->
+            <div class="tab-pane fade" id="logsTab">
+                <div class="admin-card">
+                    <div class="admin-card-header">
+                        <h3 class="admin-card-title"><i class="bi bi-terminal"></i>Logs Système</h3>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="logsAutoRefresh">
+                                <label class="form-check-label text-muted small" for="logsAutoRefresh">Auto (5s)</label>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Pending Requests -->
-                <div class="col-12">
-                    <div class="admin-card">
-                        <div class="admin-card-header">
-                            <h3 class="admin-card-title"><i class="bi bi-list-check"></i>Demandes en Attente</h3>
-                        </div>
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Média</th>
-                                        <th>Utilisateur</th>
-                                        <th>Date</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="pendingRequestsBody">
-                                    <tr>
-                                        <td colspan="4" class="text-center py-4 text-muted">
-                                            Aucune demande en attente
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Users Management -->
-                <div class="col-12">
-                    <div class="admin-card">
-                        <div class="admin-card-header">
-                            <h3 class="admin-card-title"><i class="bi bi-people"></i>Gestion des Utilisateurs</h3>
-                            <button class="btn btn-sm btn-primary" onclick="showAddUserModal()">
-                                <i class="bi bi-person-plus me-1"></i>Ajouter
+                            <button class="btn btn-sm btn-outline-light" onclick="loadLogs()">
+                                <i class="bi bi-arrow-clockwise"></i>
                             </button>
                         </div>
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Utilisateur</th>
-                                        <th>Email</th>
-                                        <th>Rôle</th>
-                                        <th>Demandes</th>
-                                        <th>Créé le</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="usersBody">
-                                    <tr>
-                                        <td colspan="6" class="text-center py-4">
-                                            <div class="spinner-border spinner-border-sm text-primary"></div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="d-flex flex-wrap gap-2 mb-3 p-3"
+                        style="background: rgba(0,0,0,0.2); border-radius: 8px;">
+                        <!-- Module Pills -->
+                        <div class="btn-group flex-wrap" id="logsModulePills">
+                            <button class="btn btn-sm btn-primary" data-module="all">Tous</button>
+                            <button class="btn btn-sm btn-outline-secondary" data-module="api">API</button>
+                            <button class="btn btn-sm btn-outline-secondary" data-module="pipeline">Pipeline</button>
+                            <button class="btn btn-sm btn-outline-info" data-module="ai">🤖 AI</button>
+                            <button class="btn btn-sm btn-outline-secondary" data-module="services">Services</button>
+                            <button class="btn btn-sm btn-outline-secondary" data-module="database">Database</button>
                         </div>
+
+                        <!-- Level Filter -->
+                        <select class="form-select form-select-sm" id="logsLevelFilter" style="width: auto;">
+                            <option value="">Tous niveaux</option>
+                            <option value="DEBUG">DEBUG</option>
+                            <option value="INFO">INFO</option>
+                            <option value="WARNING">WARNING</option>
+                            <option value="ERROR">ERROR</option>
+                        </select>
+
+                        <!-- Search -->
+                        <input type="search" class="form-control form-control-sm" id="logsSearch"
+                            placeholder="Rechercher..." style="width: 200px;">
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="d-flex gap-3 mb-3 text-muted small" id="logsStats">
+                        <span><i class="bi bi-info-circle text-info"></i> <span id="logsInfoCount">0</span> info</span>
+                        <span><i class="bi bi-exclamation-triangle text-warning"></i> <span
+                                id="logsWarningCount">0</span> warnings</span>
+                        <span><i class="bi bi-x-circle text-danger"></i> <span id="logsErrorCount">0</span>
+                            errors</span>
+                    </div>
+
+                    <!-- Logs Container -->
+                    <div id="logsContainer"
+                        style="max-height: 600px; overflow-y: auto; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 0.8rem;">
+                        <div class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-primary"></div>
+                        </div>
+                    </div>
+
+                    <!-- Load More -->
+                    <div class="text-center mt-3">
+                        <button class="btn btn-outline-secondary btn-sm" id="logsLoadMore" onclick="loadMoreLogs()"
+                            style="display:none;">
+                            Charger plus...
+                        </button>
+                        <div class="text-muted small mt-2" id="logsPagination"></div>
                     </div>
                 </div>
             </div>
         </div>
     </main>
+
+    <!-- Create User Modal -->
+    <div class="modal fade" id="createUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Créer un Utilisateur</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createUserForm">
+                        <div class="mb-3">
+                            <label class="form-label">Nom d'utilisateur *</label>
+                            <input type="text" class="form-control" id="newUsername" required minlength="3">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="newEmail">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Mot de passe</label>
+                            <input type="password" class="form-control" id="newPassword" minlength="8">
+                            <div class="form-text">Min. 8 caractères.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Rôle</label>
+                            <select class="form-select" id="newRole">
+                                <option value="user">Utilisateur</option>
+                                <option value="admin">Administrateur</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary-custom" onclick="createUser()">Créer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div class="modal fade" id="editUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Modifier l'Utilisateur</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editUserForm">
+                        <input type="hidden" id="editUserId">
+                        <div class="mb-3">
+                            <label class="form-label">Nom d'utilisateur</label>
+                            <input type="text" class="form-control" id="editUsername" disabled>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="editEmail">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Rôle</label>
+                            <select class="form-select" id="editRole">
+                                <option value="user">Utilisateur</option>
+                                <option value="admin">Administrateur</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Statut</label>
+                            <select class="form-select" id="editStatus">
+                                <option value="active">Actif</option>
+                                <option value="pending">En attente</option>
+                                <option value="disabled">Désactivé</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary-custom" onclick="updateUser()">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Toast Container -->
     <div id="toastContainer" class="toast-container"></div>
@@ -280,6 +837,7 @@
 
     <script>
         const API_BASE = '/api/v1';
+        let allUsers = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('access_token');
@@ -288,7 +846,6 @@
                 return;
             }
 
-            // Verify admin role
             try {
                 const response = await fetch(`${API_BASE}/auth/me`, {
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -310,12 +867,16 @@
         });
 
         async function refreshAll() {
-            await Promise.all([
+            // Load users FIRST (fast and critical for display)
+            await loadUsers();
+
+            // Then load other data in parallel (stats/health can be slow due to qBittorrent)
+            Promise.all([
                 loadStats(),
                 loadHealth(),
-                loadPendingRequests(),
-                loadUsers()
-            ]);
+                loadRequests(),
+                loadConfig()
+            ]).catch(e => console.warn('Background loading error:', e));
         }
 
         async function loadStats() {
@@ -326,9 +887,9 @@
                 });
                 if (response.ok) {
                     const stats = await response.json();
-                    document.getElementById('totalUsers').textContent = stats.total_users || 0;
-                    document.getElementById('pendingRequests').textContent = stats.pending_requests || 0;
-                    document.getElementById('completedToday').textContent = stats.completed_today || 0;
+                    document.getElementById('totalUsers').textContent = stats.users?.total || 0;
+                    document.getElementById('pendingRequests').textContent = stats.requests?.by_status?.pending || 0;
+                    document.getElementById('completedToday').textContent = stats.requests?.by_status?.completed || 0;
                 }
             } catch (e) {
                 console.log('Stats not available');
@@ -343,10 +904,9 @@
                 });
                 if (response.ok) {
                     const health = await response.json();
-                    updateHealthIndicator('redisHealth', health.redis);
-                    updateHealthIndicator('tmdbHealth', health.tmdb);
-                    updateHealthIndicator('qbitHealth', health.qbittorrent);
-                    updateHealthIndicator('plexHealth', health.plex);
+                    updateHealthIndicator('qbitHealth', health.qbittorrent?.status === 'ok');
+                    updateHealthIndicator('plexHealth', health.plex?.status === 'ok');
+                    updateHealthIndicator('ollamaHealth', health.ollama?.status === 'ok');
                 }
             } catch (e) {
                 console.log('Health check not available');
@@ -360,53 +920,6 @@
             }
         }
 
-        async function loadPendingRequests() {
-            const token = localStorage.getItem('access_token');
-            const tbody = document.getElementById('pendingRequestsBody');
-
-            try {
-                const response = await fetch(`${API_BASE}/admin/requests?status=pending`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    const requests = data.requests || data || [];
-
-                    if (requests.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Aucune demande en attente</td></tr>';
-                        return;
-                    }
-
-                    tbody.innerHTML = requests.slice(0, 10).map(req => `
-                        <tr>
-                            <td>
-                                <div class="d-flex align-items-center gap-2">
-                                    <img src="${req.poster_url || '/static/img/no-poster.png'}" 
-                                         style="width:40px;height:60px;object-fit:cover;border-radius:4px;">
-                                    <div>
-                                        <strong>${req.title}</strong>
-                                        <div class="text-muted small">${req.media_type}</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>${req.user?.username || 'Inconnu'}</td>
-                            <td>${new Date(req.created_at).toLocaleDateString('fr-FR')}</td>
-                            <td>
-                                <button class="btn btn-sm btn-success me-1" onclick="approveRequest('${req.id}')">
-                                    <i class="bi bi-check"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="rejectRequest('${req.id}')">
-                                    <i class="bi bi-x"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('');
-                }
-            } catch (e) {
-                console.log('Pending requests not available');
-            }
-        }
-
         async function loadUsers() {
             const token = localStorage.getItem('access_token');
             const tbody = document.getElementById('usersBody');
@@ -416,77 +929,295 @@
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (response.ok) {
-                    const users = await response.json();
+                    allUsers = await response.json();
+                    const pendingUsers = allUsers.filter(u => u.status === 'pending');
 
-                    tbody.innerHTML = users.map(user => `
+                    // Update ALL user counts immediately from loaded data
+                    document.getElementById('totalUsers').textContent = allUsers.length;
+                    document.getElementById('pendingUsersCount').textContent = pendingUsers.length;
+                    const badge = document.getElementById('pendingUsersBadge');
+                    if (pendingUsers.length > 0) {
+                        badge.textContent = pendingUsers.length;
+                        badge.style.display = 'inline';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+
+                    renderPendingUsers(pendingUsers);
+
+                    tbody.innerHTML = allUsers.map(user => `
                         <tr>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
                                     <div class="user-avatar" style="width:36px;height:36px;font-size:0.9rem;">
                                         ${user.username.charAt(0).toUpperCase()}
                                     </div>
-                                    ${user.username}
+                                    <div>
+                                        <strong>${user.username}</strong>
+                                        ${user.plex_username ? `<div class="text-muted small">Plex: ${user.plex_username}</div>` : ''}
+                                    </div>
                                 </div>
                             </td>
                             <td>${user.email || '—'}</td>
-                            <td>
-                                <span class="badge ${user.role === 'admin' ? 'bg-primary' : 'bg-secondary'}">
-                                    ${user.role}
-                                </span>
-                            </td>
-                            <td>${user.request_count || 0}</td>
+                            <td><span class="badge ${user.role === 'admin' ? 'bg-primary' : 'bg-secondary'}">${user.role}</span></td>
+                            <td><span class="status-badge ${user.status}">${user.status === 'active' ? 'Actif' : user.status === 'pending' ? 'En attente' : 'Désactivé'}</span></td>
+                            <td>${user.daily_requests_count || 0}</td>
                             <td>${new Date(user.created_at).toLocaleDateString('fr-FR')}</td>
                             <td>
-                                ${user.role !== 'admin' ? `
-                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteUser('${user.id}')">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                ` : ''}
+                                <div class="btn-group btn-group-sm">
+                                    ${user.status === 'pending' ? `
+                                        <button class="btn btn-success btn-sm" onclick="approveUser(${user.id})"><i class="bi bi-check-lg"></i></button>
+                                        <button class="btn btn-danger btn-sm" onclick="rejectUser(${user.id})"><i class="bi bi-x-lg"></i></button>
+                                    ` : ''}
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="showEditUserModal(${user.id})"><i class="bi bi-pencil"></i></button>
+                                    ${user.role !== 'admin' ? `<button class="btn btn-outline-danger btn-sm" onclick="deleteUser(${user.id})"><i class="bi bi-trash"></i></button>` : ''}
+                                </div>
                             </td>
                         </tr>
                     `).join('');
                 }
             } catch (e) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Erreur de chargement</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Erreur de chargement</td></tr>';
             }
         }
 
-        async function approveRequest(id) {
+        function renderPendingUsers(pendingUsers) {
+            const section = document.getElementById('pendingUsersSection');
+            const list = document.getElementById('pendingUsersList');
+            const quickView = document.getElementById('pendingUsersQuick');
+
+            if (pendingUsers.length === 0) {
+                section.style.display = 'none';
+                quickView.innerHTML = `<div class="text-center py-4 text-muted"><i class="bi bi-check-circle fs-1 mb-2 d-block"></i>Aucun utilisateur en attente</div>`;
+                return;
+            }
+
+            section.style.display = 'block';
+
+            const userCards = pendingUsers.map(user => `
+                <div class="pending-user-card">
+                    <div class="pending-user-avatar">${user.username.charAt(0).toUpperCase()}</div>
+                    <div class="pending-user-info">
+                        <strong>${user.username}</strong>
+                        <small>${user.email || 'Pas d\'email'} • ${new Date(user.created_at).toLocaleDateString('fr-FR')}</small>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-success btn-sm" onclick="approveUser(${user.id})"><i class="bi bi-check-lg me-1"></i>Approuver</button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="rejectUser(${user.id})"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                </div>
+            `).join('');
+
+            list.innerHTML = userCards;
+            quickView.innerHTML = userCards;
+        }
+
+        async function loadRequests() {
+            const token = localStorage.getItem('access_token');
+            const tbody = document.getElementById('requestsBody');
+
+            try {
+                const response = await fetch(`${API_BASE}/requests?limit=50`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Requests API response:', data);
+                    const requests = data.items || data.requests || data || [];
+
+                    if (requests.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Aucune demande</td></tr>';
+                        return;
+                    }
+
+                    const statusColors = { pending: 'warning', searching: 'info', downloading: 'primary', processing: 'info', completed: 'success', error: 'danger', cancelled: 'secondary' };
+
+                    tbody.innerHTML = requests.map(req => `
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <img src="${req.poster_url || '/static/img/no-poster.png'}" style="width:40px;height:60px;object-fit:cover;border-radius:4px;">
+                                    <div>
+                                        <strong>${req.title}</strong>
+                                        <div class="text-muted small">${req.media_type} ${req.year || ''}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>${req.username || 'Inconnu'}</td>
+                            <td>
+                                <span class="badge bg-${statusColors[req.status] || 'secondary'}">${req.status}</span>
+                                ${req.status_message ? `<div class="text-muted small">${req.status_message}</div>` : ''}
+                            </td>
+                            <td>${new Date(req.created_at).toLocaleDateString('fr-FR')}</td>
+                            <td>${req.status === 'error' ? `<button class="btn btn-warning btn-sm" onclick="retryRequest(${req.id})"><i class="bi bi-arrow-repeat"></i></button>` : ''}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    console.error('Requests API error:', response.status, await response.text());
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Erreur de chargement</td></tr>';
+                }
+            } catch (e) {
+                console.error('loadRequests exception:', e);
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Erreur de chargement</td></tr>';
+            }
+        }
+
+        async function loadConfig() {
+            const token = localStorage.getItem('access_token');
+            const configDisplay = document.getElementById('configDisplay');
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/config`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const config = await response.json();
+                    configDisplay.innerHTML = `
+                        <div class="row g-4">
+                            <div class="col-md-6 config-section">
+                                <h5><i class="bi bi-sliders me-2"></i>Limites</h5>
+                                <ul class="config-list">
+                                    <li><strong>Demandes/jour:</strong> ${config.max_requests_per_day}</li>
+                                    <li><strong>Durée seed:</strong> ${config.seed_duration_hours}h</li>
+                                    <li><strong>Taille max:</strong> ${config.max_download_size_gb} Go</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6 config-section">
+                                <h5><i class="bi bi-plug me-2"></i>Services</h5>
+                                <ul class="config-list">
+                                    <li><strong>Modèle AI:</strong> ${config.services?.ollama_model || 'Non configuré'}</li>
+                                    <li><strong>Plex:</strong> ${config.services?.plex_configured ? '✅ Configuré' : '❌ Non configuré'}</li>
+                                    <li><strong>YGG:</strong> ${config.services?.ygg_configured ? '✅ Configuré' : '❌ Non configuré'}</li>
+                                    <li><strong>Discord:</strong> ${config.services?.discord_configured ? '✅ Configuré' : '❌ Non configuré'}</li>
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                configDisplay.innerHTML = '<p class="text-muted">Configuration non disponible</p>';
+            }
+        }
+
+        function showCreateUserModal() {
+            document.getElementById('createUserForm').reset();
+            new bootstrap.Modal(document.getElementById('createUserModal')).show();
+        }
+
+        async function createUser() {
+            const token = localStorage.getItem('access_token');
+            const data = {
+                username: document.getElementById('newUsername').value,
+                email: document.getElementById('newEmail').value || null,
+                password: document.getElementById('newPassword').value || null,
+                role: document.getElementById('newRole').value,
+                status: 'active'
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/users`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    showToast('Utilisateur créé', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('createUserModal')).hide();
+                    await loadUsers();
+                    await loadStats();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Erreur', 'danger');
+                }
+            } catch (e) {
+                showToast('Erreur réseau', 'danger');
+            }
+        }
+
+        function showEditUserModal(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if (!user) return;
+
+            document.getElementById('editUserId').value = user.id;
+            document.getElementById('editUsername').value = user.username;
+            document.getElementById('editEmail').value = user.email || '';
+            document.getElementById('editRole').value = user.role;
+            document.getElementById('editStatus').value = user.status;
+
+            new bootstrap.Modal(document.getElementById('editUserModal')).show();
+        }
+
+        async function updateUser() {
+            const token = localStorage.getItem('access_token');
+            const userId = document.getElementById('editUserId').value;
+            const data = {
+                email: document.getElementById('editEmail').value || null,
+                role: document.getElementById('editRole').value,
+                status: document.getElementById('editStatus').value
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/users/${userId}`, {
+                    method: 'PATCH',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    showToast('Utilisateur mis à jour', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+                    await loadUsers();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Erreur', 'danger');
+                }
+            } catch (e) {
+                showToast('Erreur réseau', 'danger');
+            }
+        }
+
+        async function approveUser(userId) {
             const token = localStorage.getItem('access_token');
             try {
-                await fetch(`${API_BASE}/admin/requests/${id}/approve`, {
+                const response = await fetch(`${API_BASE}/admin/users/${userId}/approve`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                showToast('Demande approuvée', 'success');
-                await loadPendingRequests();
+                if (response.ok) {
+                    showToast('Utilisateur approuvé', 'success');
+                    await loadUsers();
+                    await loadStats();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Erreur', 'danger');
+                }
+            } catch (e) {
+                showToast('Erreur', 'danger');
+            }
+        }
+
+        async function rejectUser(userId) {
+            if (!confirm('Rejeter cet utilisateur ?')) return;
+            const token = localStorage.getItem('access_token');
+            try {
+                await fetch(`${API_BASE}/admin/users/${userId}/reject`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                showToast('Utilisateur rejeté', 'warning');
+                await loadUsers();
                 await loadStats();
             } catch (e) {
                 showToast('Erreur', 'danger');
             }
         }
 
-        async function rejectRequest(id) {
-            if (!confirm('Refuser cette demande ?')) return;
-            const token = localStorage.getItem('access_token');
-            try {
-                await fetch(`${API_BASE}/admin/requests/${id}/reject`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                showToast('Demande refusée', 'warning');
-                await loadPendingRequests();
-                await loadStats();
-            } catch (e) {
-                showToast('Erreur', 'danger');
-            }
-        }
-
-        async function deleteUser(id) {
+        async function deleteUser(userId) {
             if (!confirm('Supprimer cet utilisateur ?')) return;
             const token = localStorage.getItem('access_token');
             try {
-                await fetch(`${API_BASE}/admin/users/${id}`, {
+                await fetch(`${API_BASE}/admin/users/${userId}`, {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -507,7 +1238,7 @@
             const container = document.getElementById('toastContainer');
             const toastId = `toast-${Date.now()}`;
             container.insertAdjacentHTML('beforeend', `
-                <div id="${toastId}" class="toast bg-${type}" role="alert">
+                <div id="${toastId}" class="toast bg-${type} text-white" role="alert">
                     <div class="toast-body">${message}</div>
                 </div>
             `);
@@ -515,7 +1246,196 @@
             toast.show();
         }
 
-        // Refresh every 60 seconds
+        // =========================================================================
+        // LOGS MANAGEMENT
+        // =========================================================================
+
+        let logsState = {
+            module: 'all',
+            level: '',
+            search: '',
+            offset: 0,
+            limit: 100,
+            total: 0,
+            autoRefreshInterval: null
+        };
+
+        // Initialize logs event listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            // Module pills
+            document.querySelectorAll('#logsModulePills button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#logsModulePills button').forEach(b => {
+                        b.className = 'btn btn-sm btn-outline-secondary';
+                    });
+                    btn.className = 'btn btn-sm btn-primary';
+                    logsState.module = btn.dataset.module;
+                    logsState.offset = 0;
+                    loadLogs();
+                });
+            });
+
+            // Level filter
+            document.getElementById('logsLevelFilter')?.addEventListener('change', (e) => {
+                logsState.level = e.target.value;
+                logsState.offset = 0;
+                loadLogs();
+            });
+
+            // Search with debounce
+            let searchTimeout;
+            document.getElementById('logsSearch')?.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    logsState.search = e.target.value;
+                    logsState.offset = 0;
+                    loadLogs();
+                }, 300);
+            });
+
+            // Auto-refresh toggle
+            document.getElementById('logsAutoRefresh')?.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    logsState.autoRefreshInterval = setInterval(loadLogs, 5000);
+                    loadLogs();
+                } else {
+                    clearInterval(logsState.autoRefreshInterval);
+                    logsState.autoRefreshInterval = null;
+                }
+            });
+
+            // Load logs when tab is shown
+            document.querySelector('[data-bs-target="#logsTab"]')?.addEventListener('shown.bs.tab', () => {
+                loadLogs();
+            });
+        });
+
+        async function loadLogs(append = false) {
+            const token = localStorage.getItem('access_token');
+            const container = document.getElementById('logsContainer');
+
+            if (!append) {
+                container.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+            }
+
+            try {
+                // Build query params
+                const params = new URLSearchParams({
+                    limit: logsState.limit,
+                    offset: append ? logsState.offset : 0
+                });
+                if (logsState.level) params.append('level', logsState.level);
+                if (logsState.search) params.append('search', logsState.search);
+
+                const response = await fetch(`${API_BASE}/admin/logs/${logsState.module}?${params}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    logsState.total = data.total;
+                    logsState.offset = data.offset + data.logs.length;
+
+                    renderLogs(data.logs, append);
+                    updateLogsStats(data.logs);
+                    updateLogsPagination();
+                } else {
+                    container.innerHTML = '<div class="text-center py-4 text-danger">Erreur de chargement des logs</div>';
+                }
+            } catch (e) {
+                console.error('loadLogs error:', e);
+                container.innerHTML = '<div class="text-center py-4 text-danger">Erreur de connexion</div>';
+            }
+        }
+
+        function renderLogs(logs, append = false) {
+            const container = document.getElementById('logsContainer');
+
+            if (!logs || logs.length === 0) {
+                container.innerHTML = '<div class="text-center py-4 text-muted">Aucun log</div>';
+                return;
+            }
+
+            const levelColors = {
+                'DEBUG': 'text-muted',
+                'INFO': 'text-info',
+                'WARNING': 'text-warning',
+                'ERROR': 'text-danger'
+            };
+
+            const levelBadges = {
+                'DEBUG': 'bg-secondary',
+                'INFO': 'bg-info',
+                'WARNING': 'bg-warning text-dark',
+                'ERROR': 'bg-danger'
+            };
+
+            const html = logs.map(log => {
+                const timestamp = new Date(log.timestamp).toLocaleString('fr-FR');
+                const levelClass = levelColors[log.level] || 'text-muted';
+                const badgeClass = levelBadges[log.level] || 'bg-secondary';
+                const message = escapeHtml(log.message);
+
+                return `
+                    <div class="log-entry d-flex gap-2 py-1 px-2 border-bottom border-dark" style="background: ${log.level === 'ERROR' ? 'rgba(220, 53, 69, 0.1)' : log.level === 'WARNING' ? 'rgba(255, 193, 7, 0.05)' : 'transparent'};">
+                        <span class="text-muted" style="min-width: 140px; font-size: 0.75rem;">${timestamp}</span>
+                        <span class="badge ${badgeClass}" style="min-width: 60px; font-size: 0.7rem;">${log.level}</span>
+                        <span class="text-primary" style="min-width: 70px; font-size: 0.75rem;">${log.module}</span>
+                        <span class="${levelClass}" style="word-break: break-word;">${message}</span>
+                    </div>
+                `;
+            }).join('');
+
+            if (append) {
+                container.insertAdjacentHTML('beforeend', html);
+            } else {
+                container.innerHTML = html;
+            }
+        }
+
+        function updateLogsStats(logs) {
+            const stats = { INFO: 0, WARNING: 0, ERROR: 0 };
+            logs.forEach(log => {
+                if (stats[log.level] !== undefined) stats[log.level]++;
+            });
+
+            document.getElementById('logsInfoCount').textContent = stats.INFO;
+            document.getElementById('logsWarningCount').textContent = stats.WARNING;
+            document.getElementById('logsErrorCount').textContent = stats.ERROR;
+
+            // Update error badge on tab
+            const errorBadge = document.getElementById('logsErrorBadge');
+            if (stats.ERROR > 0) {
+                errorBadge.textContent = stats.ERROR;
+                errorBadge.style.display = 'inline';
+            } else {
+                errorBadge.style.display = 'none';
+            }
+        }
+
+        function updateLogsPagination() {
+            const pagination = document.getElementById('logsPagination');
+            const loadMoreBtn = document.getElementById('logsLoadMore');
+
+            pagination.textContent = `Affichés: ${Math.min(logsState.offset, logsState.total)} sur ${logsState.total}`;
+
+            if (logsState.offset < logsState.total) {
+                loadMoreBtn.style.display = 'inline-block';
+            } else {
+                loadMoreBtn.style.display = 'none';
+            }
+        }
+
+        function loadMoreLogs() {
+            loadLogs(true);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         setInterval(refreshAll, 60000);
     </script>
 </body>

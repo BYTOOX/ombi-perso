@@ -15,10 +15,10 @@ import httpx
 
 from ...config import get_settings
 from ...models import get_db, User
-from ...models.user import UserRole
+from ...models.user import UserRole, UserStatus
 from ...schemas.user import (
     UserCreate, UserResponse, UserUpdate,
-    Token, PlexAuth
+    Token, PlexAuth, PlexLink, RegistrationResponse
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -79,7 +79,14 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
     
-    if not user.is_active:
+    # Check user status
+    if user.status == UserStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Compte en attente d'approbation par un administrateur"
+        )
+    
+    if user.status == UserStatus.DISABLED or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Compte désactivé"
@@ -102,12 +109,17 @@ async def get_current_admin(user: User = Depends(get_current_user)) -> User:
 # ENDPOINTS
 # =========================================================================
 
-@router.post("/register", response_model=Token)
+@router.post("/register", response_model=RegistrationResponse)
 async def register(
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db)
 ):
-    """Register a new user."""
+    """
+    Register a new user.
+    
+    First user becomes admin and is immediately active.
+    Subsequent users are PENDING and require admin approval.
+    """
     # Check if username exists
     result = await db.execute(
         select(User).where(User.username == user_data.username)
@@ -129,7 +141,7 @@ async def register(
                 detail="Email déjà utilisé"
             )
     
-    # Check if first user (make admin)
+    # Check if first user (make admin and active)
     result = await db.execute(select(User).limit(1))
     is_first_user = result.scalar_one_or_none() is None
     
@@ -138,20 +150,31 @@ async def register(
         username=user_data.username,
         email=user_data.email,
         hashed_password=get_password_hash(user_data.password),
-        role=UserRole.ADMIN if is_first_user else UserRole.USER
+        role=UserRole.ADMIN if is_first_user else UserRole.USER,
+        status=UserStatus.ACTIVE if is_first_user else UserStatus.PENDING
     )
     
     db.add(user)
     await db.commit()
     await db.refresh(user)
     
-    # Create token
-    access_token = create_access_token(
-        data={"user_id": user.id, "username": user.username, "role": user.role.value}
-    )
+    # If first user (admin), return token immediately
+    if is_first_user:
+        access_token = create_access_token(
+            data={"user_id": user.id, "username": user.username, "role": user.role.value}
+        )
+        return RegistrationResponse(
+            message="Compte administrateur créé avec succès",
+            pending=False,
+            user=UserResponse.model_validate(user),
+            access_token=access_token
+        )
     
-    return Token(
-        access_token=access_token,
+    # For regular users, return pending message
+    # TODO: Send notification to admins
+    return RegistrationResponse(
+        message="Inscription réussie ! Votre compte doit être approuvé par un administrateur.",
+        pending=True,
         user=UserResponse.model_validate(user)
     )
 
@@ -179,7 +202,14 @@ async def login(
             detail="Identifiants incorrects"
         )
     
-    if not user.is_active:
+    # Check user status
+    if user.status == UserStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Compte en attente d'approbation par un administrateur"
+        )
+    
+    if user.status == UserStatus.DISABLED or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Compte désactivé"
@@ -200,12 +230,17 @@ async def login(
     )
 
 
-@router.post("/plex", response_model=Token)
+@router.post("/plex")
 async def plex_auth(
     plex_data: PlexAuth,
     db: AsyncSession = Depends(get_db)
 ):
-    """Authenticate via Plex SSO."""
+    """
+    Authenticate via Plex SSO.
+    
+    Creates a new account if not exists (PENDING for non-first users).
+    Returns token immediately for existing active users.
+    """
     # Get Plex user info
     async with httpx.AsyncClient() as client:
         try:
@@ -237,8 +272,10 @@ async def plex_auth(
         select(User).where(User.plex_id == plex_id)
     )
     user = result.scalar_one_or_none()
+    is_new_user = False
     
     if not user:
+        is_new_user = True
         # Check if first user
         result = await db.execute(select(User).limit(1))
         is_first_user = result.scalar_one_or_none() is None
@@ -250,7 +287,8 @@ async def plex_auth(
             plex_id=plex_id,
             plex_username=plex_username,
             plex_thumb=plex_thumb,
-            role=UserRole.ADMIN if is_first_user else UserRole.USER
+            role=UserRole.ADMIN if is_first_user else UserRole.USER,
+            status=UserStatus.ACTIVE if is_first_user else UserStatus.PENDING
         )
         db.add(user)
     else:
@@ -262,13 +300,26 @@ async def plex_auth(
     await db.commit()
     await db.refresh(user)
     
-    if not user.is_active:
+    # Check status for returning users
+    if user.status == UserStatus.PENDING:
+        if is_new_user:
+            return RegistrationResponse(
+                message="Inscription via Plex réussie ! Votre compte doit être approuvé par un administrateur.",
+                pending=True,
+                user=UserResponse.model_validate(user)
+            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Compte en attente d'approbation par un administrateur"
+        )
+    
+    if user.status == UserStatus.DISABLED or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Compte désactivé"
         )
     
-    # Create token
+    # Create token for active users
     access_token = create_access_token(
         data={"user_id": user.id, "username": user.username, "role": user.role.value}
     )
@@ -345,3 +396,60 @@ async def get_user_stats(
         "requests_today": today_count,
         "requests_remaining": max_per_day - today_count
     }
+
+
+@router.post("/link-plex", response_model=UserResponse)
+async def link_plex_account(
+    plex_data: PlexLink,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Link Plex account to existing user.
+    
+    Allows a user who registered manually to link their Plex account.
+    """
+    # Get Plex user info
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                "https://plex.tv/users/account.json",
+                headers={"X-Plex-Token": plex_data.plex_token}
+            )
+            response.raise_for_status()
+            plex_user = response.json().get("user", {})
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Erreur Plex: {str(e)}"
+            )
+    
+    plex_id = str(plex_user.get("id"))
+    plex_username = plex_user.get("username")
+    plex_thumb = plex_user.get("thumb")
+    
+    if not plex_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Impossible de récupérer l'ID Plex"
+        )
+    
+    # Check if Plex ID is already linked to another user
+    result = await db.execute(
+        select(User).where(User.plex_id == plex_id, User.id != current_user.id)
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ce compte Plex est déjà lié à un autre utilisateur"
+        )
+    
+    # Link Plex account
+    current_user.plex_id = plex_id
+    current_user.plex_username = plex_username
+    current_user.plex_thumb = plex_thumb
+    
+    await db.commit()
+    await db.refresh(current_user)
+    
+    return UserResponse.model_validate(current_user)

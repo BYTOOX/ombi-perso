@@ -24,10 +24,30 @@ class DownloaderService:
     def __init__(self):
         self.settings = get_settings()
         self._client: Optional[qbittorrentapi.Client] = None
+        self._connection_failed = False  # Cache connection failures
+    
+    def _is_configured(self) -> bool:
+        """Check if qBittorrent is properly configured (not placeholder values)."""
+        url = self.settings.qbittorrent_url
+        if not url:
+            return False
+        # Detect placeholder values
+        placeholders = ['your-', 'example', 'localhost', '127.0.0.1', 'xxx', 'placeholder']
+        url_lower = url.lower()
+        for placeholder in placeholders:
+            if placeholder in url_lower and placeholder not in ['localhost', '127.0.0.1']:
+                # Only localhost/127.0.0.1 are valid, others are placeholders
+                if 'your-' in url_lower or 'example' in url_lower or 'xxx' in url_lower or 'placeholder' in url_lower:
+                    return False
+        return True
     
     @property
     def client(self) -> Optional[qbittorrentapi.Client]:
-        """Get qBittorrent client connection."""
+        """Get qBittorrent client connection with timeout."""
+        # Skip if already failed or not configured
+        if self._connection_failed or not self._is_configured():
+            return None
+            
         if self._client is None and self.settings.qbittorrent_url:
             try:
                 # Parse URL
@@ -43,12 +63,15 @@ class DownloaderService:
                     host=host,
                     port=port,
                     username=self.settings.qbittorrent_username,
-                    password=self.settings.qbittorrent_password
+                    password=self.settings.qbittorrent_password,
+                    REQUESTS_TIMEOUT=3.0,  # 3 second timeout
+                    SIMPLE_RESPONSES=True  # Faster responses
                 )
                 self._client.auth_log_in()
                 logger.info(f"Connected to qBittorrent: {self._client.app.version}")
             except Exception as e:
                 logger.error(f"Failed to connect to qBittorrent: {e}")
+                self._connection_failed = True  # Don't retry on subsequent calls
                 return None
         return self._client
     
@@ -339,6 +362,14 @@ class DownloaderService:
             return {"status": "error", "message": str(e)}
 
 
+# Singleton instance for connection reuse
+_downloader_service: Optional[DownloaderService] = None
+
+
 def get_downloader_service() -> DownloaderService:
-    """Get downloader service instance."""
-    return DownloaderService()
+    """Get downloader service singleton instance (reuses connection)."""
+    global _downloader_service
+    if _downloader_service is None:
+        _downloader_service = DownloaderService()
+    return _downloader_service
+

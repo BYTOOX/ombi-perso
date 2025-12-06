@@ -5,12 +5,13 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from argon2 import PasswordHasher
 
 from ...models import get_db, User, MediaRequest, Download
-from ...models.user import UserRole
+from ...models.user import UserRole, UserStatus
 from ...models.request import RequestStatus
 from ...models.download import DownloadStatus
-from ...schemas.user import UserResponse, UserUpdate
+from ...schemas.user import UserResponse, UserUpdate, AdminUserCreate
 from ...schemas.download import DownloadStats
 from ...services.downloader import get_downloader_service
 from ...services.plex_manager import get_plex_manager_service
@@ -20,6 +21,7 @@ from .auth import get_current_admin
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 settings = get_settings()
+ph = PasswordHasher()
 
 
 # =========================================================================
@@ -28,13 +30,78 @@ settings = get_settings()
 
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(
+    status: Optional[UserStatus] = None,
     current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Lister tous les utilisateurs."""
-    result = await db.execute(select(User).order_by(User.created_at.desc()))
+    """Lister tous les utilisateurs. Optionally filter by status."""
+    query = select(User).order_by(User.created_at.desc())
+    if status:
+        query = query.where(User.status == status)
+    result = await db.execute(query)
     users = result.scalars().all()
     return [UserResponse.model_validate(u) for u in users]
+
+
+@router.get("/users/pending", response_model=List[UserResponse])
+async def list_pending_users(
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Lister les utilisateurs en attente d'approbation."""
+    result = await db.execute(
+        select(User).where(User.status == UserStatus.PENDING).order_by(User.created_at.desc())
+    )
+    users = result.scalars().all()
+    return [UserResponse.model_validate(u) for u in users]
+
+
+@router.post("/users", response_model=UserResponse, status_code=201)
+async def create_user(
+    user_data: AdminUserCreate,
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Créer un nouvel utilisateur (admin only). User is created as ACTIVE."""
+    # Check if username exists
+    result = await db.execute(
+        select(User).where(User.username == user_data.username)
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="Nom d'utilisateur déjà pris"
+        )
+    
+    # Check if email exists
+    if user_data.email:
+        result = await db.execute(
+            select(User).where(User.email == user_data.email)
+        )
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=400,
+                detail="Email déjà utilisé"
+            )
+    
+    # Create user with optional password
+    hashed_pw = None
+    if user_data.password:
+        hashed_pw = ph.hash(user_data.password)
+    
+    user = User(
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password=hashed_pw,
+        role=user_data.role,
+        status=user_data.status  # Admin-created users default to ACTIVE
+    )
+    
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    
+    return UserResponse.model_validate(user)
 
 
 @router.get("/users/{user_id}", response_model=UserResponse)
@@ -80,11 +147,67 @@ async def update_user(
         user.is_active = update_data.is_active
     if update_data.role is not None:
         user.role = update_data.role
+    if update_data.status is not None:
+        user.status = update_data.status
     
     await db.commit()
     await db.refresh(user)
     
     return UserResponse.model_validate(user)
+
+
+@router.post("/users/{user_id}/approve", response_model=UserResponse)
+async def approve_user(
+    user_id: int,
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Approuver un utilisateur en attente."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+    
+    if user.status != UserStatus.PENDING:
+        raise HTTPException(
+            status_code=400,
+            detail=f"L'utilisateur n'est pas en attente (statut: {user.status.value})"
+        )
+    
+    user.status = UserStatus.ACTIVE
+    await db.commit()
+    await db.refresh(user)
+    
+    # TODO: Send notification to user
+    
+    return UserResponse.model_validate(user)
+
+
+@router.post("/users/{user_id}/reject")
+async def reject_user(
+    user_id: int,
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Rejeter/désactiver un utilisateur."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+    
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=400,
+            detail="Vous ne pouvez pas vous désactiver vous-même"
+        )
+    
+    user.status = UserStatus.DISABLED
+    user.is_active = False
+    await db.commit()
+    
+    return {"message": "Utilisateur désactivé"}
 
 
 @router.delete("/users/{user_id}")
@@ -121,11 +244,18 @@ async def get_stats(
     current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Obtenir les statistiques globales."""
-    # User count
+    """
+    Obtenir les statistiques globales.
+    Optimisé: les stats DB sont retournées immédiatement,
+    les stats qBittorrent sont en cache ou avec timeout court.
+    """
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    
+    # User count - fast DB query
     user_count = (await db.execute(select(func.count()).select_from(User))).scalar()
     
-    # Request counts by status
+    # Request counts by status - single optimized query
     request_stats = {}
     for status in RequestStatus:
         count = (await db.execute(
@@ -135,9 +265,30 @@ async def get_stats(
     
     total_requests = sum(request_stats.values())
     
-    # Download info
-    downloader = get_downloader_service()
-    disk_usage = downloader.get_disk_usage()
+    # Download info - run in thread pool with timeout to avoid blocking
+    disk_usage = {}
+    active_count = 0
+    
+    try:
+        loop = asyncio.get_event_loop()
+        downloader = get_downloader_service()
+        
+        with ThreadPoolExecutor() as executor:
+            # Run with 2 second timeout
+            disk_future = loop.run_in_executor(executor, downloader.get_disk_usage)
+            try:
+                disk_usage = await asyncio.wait_for(disk_future, timeout=2.0)
+            except asyncio.TimeoutError:
+                disk_usage = {}
+            
+            torrents_future = loop.run_in_executor(executor, downloader.get_all_torrents)
+            try:
+                torrents = await asyncio.wait_for(torrents_future, timeout=2.0)
+                active_count = len(torrents)
+            except asyncio.TimeoutError:
+                active_count = 0
+    except Exception:
+        pass
     
     return {
         "users": {
@@ -150,7 +301,7 @@ async def get_stats(
         "downloads": {
             "disk_usage_gb": disk_usage.get("total_size_gb", 0),
             "disk_limit_gb": disk_usage.get("limit_gb", settings.max_download_size_gb),
-            "active_count": len(downloader.get_all_torrents())
+            "active_count": active_count
         }
     }
 
@@ -199,16 +350,57 @@ async def get_download_stats(
 async def health_check(
     current_user: User = Depends(get_current_admin)
 ):
-    """Vérifier l'état de tous les services."""
+    """
+    Vérifier l'état de tous les services.
+    Optimisé: exécution parallèle avec timeouts courts.
+    """
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    
     plex = get_plex_manager_service()
     downloader = get_downloader_service()
     ai = get_ai_agent_service()
     
+    # Run health checks in parallel with timeouts
+    loop = asyncio.get_event_loop()
+    
+    async def check_with_timeout(coro_or_func, timeout=2.0, is_sync=False):
+        try:
+            if is_sync:
+                with ThreadPoolExecutor() as executor:
+                    result = await asyncio.wait_for(
+                        loop.run_in_executor(executor, coro_or_func),
+                        timeout=timeout
+                    )
+            else:
+                result = await asyncio.wait_for(coro_or_func, timeout=timeout)
+            return result
+        except asyncio.TimeoutError:
+            return {"status": "timeout"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    
+    # Run all health checks in parallel
+    plex_result, qbit_result, ollama_result = await asyncio.gather(
+        check_with_timeout(plex.health_check, is_sync=True),
+        check_with_timeout(downloader.health_check, is_sync=True),
+        check_with_timeout(ai.health_check(), is_sync=False),
+        return_exceptions=True
+    )
+    
+    # Handle exceptions from gather
+    if isinstance(plex_result, Exception):
+        plex_result = {"status": "error", "message": str(plex_result)}
+    if isinstance(qbit_result, Exception):
+        qbit_result = {"status": "error", "message": str(qbit_result)}
+    if isinstance(ollama_result, Exception):
+        ollama_result = False
+    
     return {
-        "plex": plex.health_check(),
-        "qbittorrent": downloader.health_check(),
+        "plex": plex_result,
+        "qbittorrent": qbit_result,
         "ollama": {
-            "status": "ok" if await ai.health_check() else "error"
+            "status": "ok" if ollama_result is True else "error"
         },
         "database": {"status": "ok"}
     }
@@ -277,3 +469,68 @@ async def get_plex_libraries(
     """Obtenir la liste des librairies Plex."""
     plex = get_plex_manager_service()
     return plex.get_libraries()
+
+
+# =========================================================================
+# LOGS
+# =========================================================================
+
+from fastapi import Query
+from ...logging_config import InMemoryLogHandler, get_available_modules, LOG_MODULES
+
+
+@router.get("/logs")
+async def get_logs_overview(
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    Obtenir un aperçu des modules de logs disponibles et statistiques.
+    """
+    stats = InMemoryLogHandler.get_stats()
+    modules = get_available_modules()
+    
+    return {
+        "modules": modules,
+        "module_info": {
+            module: {
+                "name": module.capitalize(),
+                "prefixes": prefixes,
+                "stats": stats.get(module, {"total": 0, "errors": 0, "warnings": 0})
+            }
+            for module, prefixes in LOG_MODULES.items()
+        },
+        "stats": stats
+    }
+
+
+@router.get("/logs/{module}")
+async def get_logs(
+    module: str,
+    level: Optional[str] = Query(None, description="Filter by log level: DEBUG, INFO, WARNING, ERROR"),
+    search: Optional[str] = Query(None, description="Search in log messages"),
+    limit: int = Query(100, ge=1, le=1000, description="Number of logs to return"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    Obtenir les logs d'un module spécifique avec filtrage.
+    
+    Modules disponibles: all, api, pipeline, services, database, other
+    """
+    available = get_available_modules()
+    
+    if module not in available:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Module invalide. Modules disponibles: {', '.join(available)}"
+        )
+    
+    result = InMemoryLogHandler.get_logs(
+        module=module,
+        level=level,
+        search=search,
+        limit=limit,
+        offset=offset
+    )
+    
+    return result

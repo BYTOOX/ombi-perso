@@ -1,0 +1,116 @@
+# =============================================================================
+# PLEX KIOSK - Docker Compose SYNOLOGY (GitHub Container Registry)
+# =============================================================================
+# Usage: docker-compose -f docker-compose.synology.yml up -d
+# =============================================================================
+# Note: Optimized for Synology NAS - uses pre-built image from GHCR
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # PLEX KIOSK - Main Application (Pre-built from GitHub)
+  # ===========================================================================
+  plex-kiosk:
+    image: ghcr.io/bytoox/ombi-perso:main
+    container_name: plex-kiosk
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      # Application
+      - APP_NAME=${APP_NAME:-plex-kiosk}
+      - APP_PORT=8765
+      - SECRET_KEY=${SECRET_KEY:?Secret key required}
+      - DEBUG=${DEBUG:-false}
+      # Database
+      - DATABASE_URL=sqlite:///./data/kiosk.db
+      # Redis
+      - REDIS_URL=redis://redis:6379/0
+      # FlareSolverr
+      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
+      # Ollama (external - Synology or other machine)
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      # TMDB
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      # YGGtorrent
+      - YGG_USERNAME=${YGG_USERNAME}
+      - YGG_PASSWORD=${YGG_PASSWORD}
+      - YGG_PASSKEY=${YGG_PASSKEY}
+      # Plex
+      - PLEX_URL=${PLEX_URL}
+      - PLEX_TOKEN=${PLEX_TOKEN}
+      # qBittorrent
+      - QBITTORRENT_URL=${QBITTORRENT_URL}
+      - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME:-admin}
+      - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD}
+      # Paths (Synology typical paths)
+      - DOWNLOAD_PATH=/downloads
+      - LIBRARY_PATHS=${LIBRARY_PATHS}
+      # Notifications
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      # Limits
+      - MAX_REQUESTS_PER_DAY=${MAX_REQUESTS_PER_DAY:-10}
+      - SEED_DURATION_HOURS=${SEED_DURATION_HOURS:-24}
+      - MAX_DOWNLOAD_SIZE_GB=${MAX_DOWNLOAD_SIZE_GB:-1000}
+    volumes:
+      # Synology paths - adjust /volume1 as needed
+      - /volume1/docker/plex-kiosk/data:/app/data
+      - /volume1/downloads:/downloads
+      - /volume1/media:/media:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      flaresolverr:
+        condition: service_started
+    networks:
+      - plex-kiosk-network
+    # Synology DNS configuration
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+
+  # ===========================================================================
+  # REDIS - Cache & Queue
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: plex-kiosk-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - /volume1/docker/plex-kiosk/redis:/data
+    networks:
+      - plex-kiosk-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================================================
+  # FLARESOLVERR - Cloudflare Bypass
+  # ===========================================================================
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: plex-kiosk-flaresolverr
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+      - TZ=Europe/Paris
+    networks:
+      - plex-kiosk-network
+    # Memory limits for Synology (FlareSolverr can use ~500MB)
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+# ===========================================================================
+# NETWORKS
+# ===========================================================================
+networks:
+  plex-kiosk-network:
+    driver: bridge
