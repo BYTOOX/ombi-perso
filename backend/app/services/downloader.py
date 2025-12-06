@@ -45,7 +45,12 @@ class DownloaderService:
     def client(self) -> Optional[qbittorrentapi.Client]:
         """Get qBittorrent client connection with timeout."""
         # Skip if already failed or not configured
-        if self._connection_failed or not self._is_configured():
+        if self._connection_failed:
+            logger.warning("qBittorrent connection previously failed, not retrying (restart container to retry)")
+            return None
+        
+        if not self._is_configured():
+            logger.warning(f"qBittorrent not configured. URL: {self.settings.qbittorrent_url}")
             return None
             
         if self._client is None and self.settings.qbittorrent_url:
@@ -53,24 +58,28 @@ class DownloaderService:
                 # Parse URL
                 url = self.settings.qbittorrent_url
                 host = url.replace("http://", "").replace("https://", "")
+                # Remove trailing slash and path if present
+                if "/" in host:
+                    host = host.split("/")[0]
                 if ":" in host:
-                    host, port = host.split(":")
-                    port = int(port)
+                    host, port_str = host.split(":")
+                    port = int(port_str)
                 else:
                     port = 8080
+                
+                logger.info(f"Connecting to qBittorrent at {host}:{port}...")
                 
                 self._client = qbittorrentapi.Client(
                     host=host,
                     port=port,
                     username=self.settings.qbittorrent_username,
                     password=self.settings.qbittorrent_password,
-                    REQUESTS_TIMEOUT=3.0,  # 3 second timeout
-                    SIMPLE_RESPONSES=True  # Faster responses
+                    VERIFY_WEBUI_CERTIFICATE=False,
                 )
                 self._client.auth_log_in()
                 logger.info(f"Connected to qBittorrent: {self._client.app.version}")
             except Exception as e:
-                logger.error(f"Failed to connect to qBittorrent: {e}")
+                logger.error(f"Failed to connect to qBittorrent at {self.settings.qbittorrent_url}: {e}")
                 self._connection_failed = True  # Don't retry on subsequent calls
                 return None
         return self._client
@@ -101,6 +110,7 @@ class DownloaderService:
             Torrent hash if successful, None otherwise
         """
         if not self.client:
+            logger.error("Cannot add torrent: qBittorrent client is not connected. Check QBITTORRENT_URL, QBITTORRENT_USERNAME, QBITTORRENT_PASSWORD in .env")
             return None
         
         try:
@@ -121,20 +131,51 @@ class DownloaderService:
                 raise ValueError("Must provide torrent_url, magnet_link, or torrent_file")
             
             # Add torrent
+            logger.info(f"Adding torrent URL: {torrent_url[:100]}...")  # Log URL (truncated)
             result = self.client.torrents_add(**params)
             
             if result == "Ok.":
                 # Get the hash of the added torrent
                 # qBittorrent doesn't return the hash directly, so we need to find it
-                # by checking recent torrents
                 import time
-                time.sleep(1)  # Wait for torrent to be added
+                import hashlib
                 
-                torrents = self.client.torrents_info(category=category, sort="added_on", reverse=True)
-                if torrents:
-                    return torrents[0].hash
+                time.sleep(2)  # Wait for torrent to be added
+                
+                # Try multiple methods to get the hash
+                torrent_hash = None
+                
+                # Method 1: Get by category
+                try:
+                    torrents = self.client.torrents_info(category=category, sort="added_on", reverse=True)
+                    if torrents:
+                        torrent_hash = torrents[0].hash
+                        logger.info(f"Torrent added, hash (by category): {torrent_hash}")
+                except Exception as e:
+                    logger.warning(f"Could not get torrents by category: {e}")
+                
+                # Method 2: Get all recent torrents
+                if not torrent_hash:
+                    try:
+                        torrents = self.client.torrents_info(sort="added_on", reverse=True, limit=5)
+                        if torrents:
+                            torrent_hash = torrents[0].hash
+                            logger.info(f"Torrent added, hash (all recent): {torrent_hash}")
+                    except Exception as e:
+                        logger.warning(f"Could not get recent torrents: {e}")
+                
+                # Method 3: Generate a pseudo-hash from URL (last resort)
+                if not torrent_hash and torrent_url:
+                    torrent_hash = hashlib.md5(torrent_url.encode()).hexdigest()[:40]
+                    logger.warning(f"Using generated hash from URL: {torrent_hash}")
+                
+                if torrent_hash:
+                    return torrent_hash
+                else:
+                    logger.warning("Torrent added but could not retrieve or generate hash")
+                    return None
             
-            logger.warning(f"Torrent add result: {result}")
+            logger.warning(f"Torrent add result: {result}. URL: {torrent_url[:100] if torrent_url else 'N/A'}")
             return None
         except Exception as e:
             logger.error(f"Error adding torrent: {e}")

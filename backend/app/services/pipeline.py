@@ -216,17 +216,23 @@ class RequestPipelineService:
     ) -> Optional[Download]:
         """Add torrent to qBittorrent and create download record."""
         try:
-            # Get download URL
-            torrent_url = self.scraper.get_torrent_url(torrent.id)
+            # Download the torrent file (qBittorrent can't download from YGG URLs without cookies)
+            logger.info(f"Downloading torrent file for: {torrent.id}")
+            torrent_file_bytes = await self.scraper.download_torrent_file(torrent.id)
             
-            # Add to qBittorrent
-            result = self.downloader.add_torrent(torrent_url=torrent_url)
+            if not torrent_file_bytes:
+                # Fallback: try URL method (might work with passkey)
+                logger.warning("Could not download torrent file, trying URL method...")
+                torrent_url = await self.scraper.get_torrent_url(torrent.id)
+                torrent_hash = self.downloader.add_torrent(torrent_url=torrent_url)
+            else:
+                # Send torrent file bytes directly to qBittorrent
+                torrent_url = f"file://{torrent.id}.torrent"  # Placeholder for logging
+                torrent_hash = self.downloader.add_torrent(torrent_file=torrent_file_bytes)
             
-            if not result.get("success"):
-                logger.error(f"Failed to add torrent: {result.get('error')}")
+            if not torrent_hash:
+                logger.error("Failed to add torrent: add_torrent returned None")
                 return None
-            
-            torrent_hash = result.get("hash")
             
             # Create download record
             download = Download(
@@ -234,7 +240,7 @@ class RequestPipelineService:
                 torrent_hash=torrent_hash,
                 torrent_name=torrent.name,
                 torrent_url=torrent_url,
-                size_bytes=torrent.size or 0,
+                size_bytes=torrent.size_bytes or 0,
                 status=DownloadStatus.DOWNLOADING
             )
             
@@ -245,9 +251,12 @@ class RequestPipelineService:
             logger.info(f"Started download: {torrent.name} (hash: {torrent_hash})")
             
             # Send notification
+            size_gb = round(torrent.size_bytes / (1024**3), 2) if torrent.size_bytes else 0
             await self.notifier.notify_download_started(
                 title=request.title,
-                torrent_name=torrent.name
+                media_type=request.media_type.value,
+                torrent_name=torrent.name,
+                size=f"{size_gb} GB"
             )
             
             return download

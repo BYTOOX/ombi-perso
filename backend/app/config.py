@@ -33,9 +33,9 @@ class Settings(BaseSettings):
     # FlareSolverr
     flaresolverr_url: str = Field(default="http://localhost:8191/v1", description="FlareSolverr URL")
     
-    # Ollama (Local AI)
-    ollama_url: str = Field(default="http://localhost:11434", description="Ollama API URL")
-    ollama_model: str = Field(default="qwen2.5:14b", description="Ollama model name")
+    # Ollama (Local AI) - MUST be configured in .env
+    ollama_url: Optional[str] = Field(default=None, description="Ollama API URL - REQUIRED")
+    ollama_model: Optional[str] = Field(default=None, description="Ollama model name - REQUIRED")
     
     # TMDB
     tmdb_api_key: Optional[str] = Field(default=None, description="TMDB API key")

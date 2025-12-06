@@ -28,9 +28,9 @@ services:
       - REDIS_URL=redis://redis:6379/0
       # FlareSolverr
       - FLARESOLVERR_URL=http://flaresolverr:8191/v1
-      # Ollama (external - host machine)
-      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:14b}
+      # Ollama (external - from .env ONLY)
+      - OLLAMA_URL=${OLLAMA_URL}
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
       # TMDB
       - TMDB_API_KEY=${TMDB_API_KEY}
       # YGGtorrent

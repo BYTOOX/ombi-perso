@@ -47,6 +47,7 @@ class TorrentScraperService:
     def __init__(self):
         self.settings = get_settings()
         self._session_cookie: Optional[str] = None
+        self._session_cookie_name: str = "ygg_"  # Will be updated with actual name
         self._cf_clearance: Optional[str] = None
         self._user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
         logger.info(f"[Scraper] Initialized with YGG URL: {self.settings.ygg_base_url}")
@@ -119,12 +120,16 @@ class TorrentScraperService:
     async def get_torrent_url(self, torrent_id: str) -> Optional[str]:
         """
         Get direct download URL for a torrent.
-        Uses passkey if available.
+        Uses passkey if available and valid, otherwise uses authenticated download.
         """
-        if self.settings.ygg_passkey:
-            return f"{self.settings.ygg_base_url}/engine/download_torrent?id={torrent_id}&passkey={self.settings.ygg_passkey}"
+        # Check if passkey is configured and not a placeholder
+        passkey = self.settings.ygg_passkey
+        if passkey and passkey not in ['your_passkey', 'votre_passkey', '', None]:
+            logger.info(f"[Scraper] Using passkey URL for torrent {torrent_id}")
+            return f"{self.settings.ygg_base_url}/engine/download_torrent?id={torrent_id}&passkey={passkey}"
         
-        # Otherwise need to login and get from page
+        # Otherwise need to login and get authenticated download URL
+        logger.info(f"[Scraper] Using authenticated download for torrent {torrent_id}")
         return await self._get_authenticated_download_url(torrent_id)
     
     async def _fetch_with_flaresolverr(self, url: str) -> Optional[str]:
@@ -148,8 +153,8 @@ class TorrentScraperService:
             cookies_to_send.append({"name": "cf_clearance", "value": self._cf_clearance})
             logger.info("[FlareSolverr] Adding cf_clearance cookie")
         if self._session_cookie:
-            cookies_to_send.append({"name": "ygg_", "value": self._session_cookie})
-            logger.info("[FlareSolverr] Adding YGG session cookie")
+            cookies_to_send.append({"name": self._session_cookie_name, "value": self._session_cookie})
+            logger.info(f"[FlareSolverr] Adding YGG session cookie: {self._session_cookie_name}")
         
         if cookies_to_send:
             payload["cookies"] = cookies_to_send
@@ -261,6 +266,7 @@ class TorrentScraperService:
                         cookie_name = cookie.get("name", "")
                         if cookie_name.startswith("ygg"):
                             self._session_cookie = cookie.get("value")
+                            self._session_cookie_name = cookie_name  # Store actual name!
                             logger.info(f"[YGG Login] Found session cookie: {cookie_name}")
                         if cookie_name == "cf_clearance":
                             self._cf_clearance = cookie.get("value")
@@ -291,12 +297,95 @@ class TorrentScraperService:
                 return False
     
     async def _get_authenticated_download_url(self, torrent_id: str) -> Optional[str]:
-        """Get download URL with authentication."""
-        if not await self._login_if_needed():
+        """
+        Get download URL with authentication.
+        NOTE: This returns the URL but qBittorrent can't use it without cookies.
+        Use download_torrent_file() instead to get the actual torrent bytes.
+        """
+        if not torrent_id:
+            logger.error("[Scraper] Cannot get download URL: torrent_id is empty")
             return None
         
-        # This would return the authenticated URL
-        # For now, return passkey URL which is simpler
+        if not await self._login_if_needed():
+            logger.error("[Scraper] Cannot get download URL: login failed")
+            return None
+        
+        download_url = f"{self.settings.ygg_base_url}/engine/download_torrent?id={torrent_id}"
+        logger.info(f"[Scraper] Authenticated download URL: {download_url}")
+        return download_url
+    
+    async def download_torrent_file(self, torrent_id: str) -> Optional[bytes]:
+        """
+        Download the .torrent file using FlareSolverr and return its bytes.
+        Cloudflare blocks all direct requests - FlareSolverr is required.
+        """
+        if not torrent_id:
+            logger.error("[Scraper] Cannot download torrent: torrent_id is empty")
+            return None
+        
+        # Build download URL - use passkey if available
+        passkey = self.settings.ygg_passkey
+        if passkey and passkey not in ['your_passkey', 'votre_passkey', '', None]:
+            download_url = f"{self.settings.ygg_base_url}/engine/download_torrent?id={torrent_id}&passkey={passkey}"
+            logger.info(f"[Scraper] Using passkey URL for download: {download_url[:80]}...")
+        else:
+            # Need login for non-passkey URL
+            if not await self._login_if_needed():
+                logger.error("[Scraper] Cannot download torrent: login failed")
+                return None
+            download_url = f"{self.settings.ygg_base_url}/engine/download_torrent?id={torrent_id}"
+            logger.info(f"[Scraper] Using authenticated URL for download")
+        
+        # Build cookies for FlareSolverr
+        cookies_to_send = []
+        if self._cf_clearance:
+            cookies_to_send.append({"name": "cf_clearance", "value": self._cf_clearance})
+        if self._session_cookie:
+            cookies_to_send.append({"name": self._session_cookie_name, "value": self._session_cookie})
+        
+        payload = {
+            "cmd": "request.get",
+            "url": download_url,
+            "maxTimeout": 60000,
+            "returnOnlyCookies": False
+        }
+        
+        if cookies_to_send:
+            payload["cookies"] = cookies_to_send
+        
+        logger.info(f"[Scraper] Downloading torrent via FlareSolverr...")
+        
+        try:
+            async with httpx.AsyncClient(timeout=70.0) as client:
+                response = await client.post(self.settings.flaresolverr_url, json=payload)
+                data = response.json()
+                
+                if data.get("status") == "ok":
+                    solution = data.get("solution", {})
+                    response_content = solution.get("response", "")
+                    response_status = solution.get("status", 0)
+                    
+                    logger.info(f"[Scraper] FlareSolverr response status: {response_status}, content length: {len(response_content)}")
+                    
+                    # Check if it's a torrent file
+                    if response_content:
+                        # Torrent files start with 'd' (bencoded dict) and contain 'announce'
+                        if response_content.startswith("d") and "announce" in response_content[:500]:
+                            content_bytes = response_content.encode('latin-1')
+                            logger.info(f"[Scraper] Successfully downloaded torrent file ({len(content_bytes)} bytes)")
+                            return content_bytes
+                        elif "<!DOCTYPE" in response_content[:100] or "<html" in response_content[:100]:
+                            logger.warning("[Scraper] Got HTML instead of torrent - Cloudflare challenge or error page")
+                            logger.debug(f"[Scraper] HTML preview: {response_content[:300]}")
+                        else:
+                            logger.warning(f"[Scraper] Unknown content type. First 100 chars: {response_content[:100]}")
+                    else:
+                        logger.error("[Scraper] FlareSolverr returned empty response")
+                else:
+                    logger.error(f"[Scraper] FlareSolverr error: {data.get('message')}")
+        except Exception as e:
+            logger.error(f"[Scraper] FlareSolverr download error: {e}")
+        
         return None
     
     def _parse_search_results(self, html: str) -> List[TorrentResult]:
@@ -344,11 +433,25 @@ class TorrentScraperService:
         name = link.get_text(strip=True)
         href = link.get("href", "")
         
-        # Extract ID from href
+        # Extract ID from href - try multiple patterns
         torrent_id = ""
-        id_match = re.search(r"/torrent/(\d+)/", href)
+        # Pattern 1: /torrent/ID/name or /torrent/ID-name
+        id_match = re.search(r"/torrent/(\d+)", href)
         if id_match:
             torrent_id = id_match.group(1)
+        else:
+            # Pattern 2: id=ID in URL
+            id_match = re.search(r"[?&]id=(\d+)", href)
+            if id_match:
+                torrent_id = id_match.group(1)
+            else:
+                # Pattern 3: /ID/ or -ID-
+                id_match = re.search(r"/(\d{5,})", href)
+                if id_match:
+                    torrent_id = id_match.group(1)
+        
+        if not torrent_id:
+            logger.warning(f"[Parser] Could not extract ID from href: {href[:100]}")
         
         # Size
         size_text = cells[5].get_text(strip=True)
@@ -375,7 +478,7 @@ class TorrentScraperService:
             seeders=seeders,
             leechers=leechers,
             upload_date=upload_date,
-            torrent_url=f"{self.YGG_BASE_URL}{href}" if href.startswith("/") else href,
+            torrent_url=f"{self.settings.ygg_base_url}{href}" if href.startswith("/") else href,
             quality=quality,
             release_group=release_group,
             has_french_audio=has_french,
