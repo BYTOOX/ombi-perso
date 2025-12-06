@@ -61,7 +61,7 @@ class AIAgentService:
             Sorted list of torrents with AI scores
         """
         if not torrents:
-            logger.warning(f"[AI] No torrents to score")
+            logger.warning("[AI] No torrents to score")
             return []
         
         logger.info(f"[AI] Scoring {len(torrents)} torrents for: {media.title}")
@@ -69,7 +69,7 @@ class AIAgentService:
         
         # For small lists, use simpler scoring
         if len(torrents) <= 3:
-            logger.info(f"[AI] Using simple scoring (≤3 torrents)")
+            logger.info("[AI] Using simple scoring (≤3 torrents)")
             return self._simple_score_torrents(torrents, quality_preference)
         
         # Use AI for larger lists
@@ -83,14 +83,14 @@ class AIAgentService:
             scored_torrents = self._parse_scoring_response(response, torrents)
             sorted_torrents = sorted(scored_torrents, key=lambda t: t.ai_score or 0, reverse=True)
             
-            logger.info(f"[AI] Top 3 scored torrents:")
+            logger.info("[AI] Top 3 scored torrents:")
             for i, t in enumerate(sorted_torrents[:3], 1):
                 logger.info(f"  [{i}] Score: {t.ai_score} - {t.name[:60]}...")
             
             return sorted_torrents
         except Exception as e:
             logger.error(f"[AI] Ollama scoring failed: {e}")
-            logger.info(f"[AI] Falling back to simple scoring")
+            logger.info("[AI] Falling back to simple scoring")
             return self._simple_score_torrents(torrents, quality_preference)
     
     async def select_best_torrent(
@@ -180,11 +180,10 @@ Réponds UNIQUEMENT avec un JSON (pas de texte avant/après):
         quality_preference: str
     ) -> List[TorrentResult]:
         """Simple rule-based scoring fallback."""
-        logger.info(f"[AI] Running simple rule-based scoring...")
+        logger.info("[AI] Running simple rule-based scoring...")
         
         for t in torrents:
             score = 50  # Base score
-            reasons = []
             
             # Quality bonus
             if t.quality == quality_preference:
@@ -374,7 +373,7 @@ Réponds UNIQUEMENT avec le chemin, rien d'autre.
     async def _query_ollama(self, prompt: str) -> str:
         """Query Ollama API."""
         if not self.settings.ollama_url:
-            logger.error(f"[AI] Ollama URL not configured!")
+            logger.error("[AI] Ollama URL not configured!")
             raise ValueError("Ollama URL not configured")
         
         logger.info(f"[AI] Querying Ollama at: {self.settings.ollama_url}")
@@ -394,7 +393,7 @@ Réponds UNIQUEMENT avec le chemin, rien d'autre.
         }
         
         try:
-            logger.info(f"[AI] Sending request to Ollama (timeout: 120s)...")
+            logger.info("[AI] Sending request to Ollama (timeout: 120s)...")
             response = await self.client.post(
                 f"{self.settings.ollama_url}/api/generate",
                 json=payload
@@ -424,7 +423,7 @@ Réponds UNIQUEMENT avec le chemin, rien d'autre.
             logger.error(f"[AI] Response body: {e.response.text[:500]}")
             raise
         except httpx.TimeoutException:
-            logger.error(f"[AI] Ollama request timed out after 120 seconds")
+            logger.error("[AI] Ollama request timed out after 120 seconds")
             raise
         except Exception as e:
             logger.error(f"[AI] Ollama error: {e}")

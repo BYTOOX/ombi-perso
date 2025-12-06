@@ -7,7 +7,6 @@ Logs are written to:
 - /app/data/logs/pipeline.log - Request pipeline logs
 - /app/data/logs/services.log - Services logs (torrent, plex, etc)
 """
-import os
 import logging
 import json
 from datetime import datetime
@@ -138,12 +137,12 @@ class InMemoryLogHandler(logging.Handler):
         
         # Filter by level
         if level:
-            logs = [l for l in logs if l["level"] == level.upper()]
+            logs = [entry for entry in logs if entry["level"] == level.upper()]
         
         # Filter by search
         if search:
             search_lower = search.lower()
-            logs = [l for l in logs if search_lower in l["message"].lower()]
+            logs = [entry for entry in logs if search_lower in entry["message"].lower()]
         
         total = len(logs)
         
@@ -166,13 +165,13 @@ class InMemoryLogHandler(logging.Handler):
             logs = list(buffer)
             stats[module] = {
                 "total": len(logs),
-                "errors": sum(1 for l in logs if l["level"] == "ERROR"),
-                "warnings": sum(1 for l in logs if l["level"] == "WARNING")
+                "errors": sum(1 for entry in logs if entry["level"] == "ERROR"),
+                "warnings": sum(1 for entry in logs if entry["level"] == "WARNING")
             }
         stats["all"] = {
             "total": len(cls._all_buffer),
-            "errors": sum(1 for l in cls._all_buffer if l["level"] == "ERROR"),
-            "warnings": sum(1 for l in cls._all_buffer if l["level"] == "WARNING")
+            "errors": sum(1 for entry in cls._all_buffer if entry["level"] == "ERROR"),
+            "warnings": sum(1 for entry in cls._all_buffer if entry["level"] == "WARNING")
         }
         return stats
 

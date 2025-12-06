@@ -66,7 +66,7 @@ class RequestPipelineService:
             
             try:
                 # Start processing
-                logger.info(f"=" * 60)
+                logger.info("=" * 60)
                 logger.info(f"PIPELINE START - Request #{request_id}")
                 logger.info(f"Title: {request.title}")
                 logger.info(f"Original Title: {request.original_title}")
@@ -74,7 +74,7 @@ class RequestPipelineService:
                 logger.info(f"Media Type: {request.media_type.value}")
                 logger.info(f"Quality Preference: {request.quality_preference}")
                 logger.info(f"External ID: {request.external_id} (source: {request.source})")
-                logger.info(f"=" * 60)
+                logger.info("=" * 60)
                 
                 # Step 1: Search torrents
                 await self._update_status(db, request, RequestStatus.SEARCHING, "Recherche de torrents...")

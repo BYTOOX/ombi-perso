@@ -2,7 +2,7 @@
 Admin endpoints for user and system management.
 """
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from argon2 import PasswordHasher
@@ -17,6 +17,7 @@ from ...services.downloader import get_downloader_service
 from ...services.plex_manager import get_plex_manager_service
 from ...services.ai_agent import get_ai_agent_service
 from ...config import get_settings
+from ...logging_config import InMemoryLogHandler, get_available_modules, LOG_MODULES
 from .auth import get_current_admin
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -474,9 +475,6 @@ async def get_plex_libraries(
 # =========================================================================
 # LOGS
 # =========================================================================
-
-from fastapi import Query
-from ...logging_config import InMemoryLogHandler, get_available_modules, LOG_MODULES
 
 
 @router.get("/logs")
