@@ -347,12 +347,17 @@ async def get_request(
 
 
 @router.delete("/{request_id}")
-async def cancel_request(
+async def delete_request(
     request_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Annuler une demande (utilisateur peut annuler les siennes, admin toutes)."""
+    """
+    Supprimer ou annuler une demande.
+    
+    - Admin: peut supprimer définitivement toute demande non-complétée
+    - Utilisateur: peut annuler ses propres demandes en attente
+    """
     result = await db.execute(
         select(MediaRequest).where(MediaRequest.id == request_id)
     )
@@ -365,7 +370,21 @@ async def cancel_request(
     if not current_user.is_admin and request.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Accès refusé")
     
-    # Can only cancel pending/searching requests
+    # Admin can delete any non-completed request permanently
+    if current_user.is_admin:
+        if request.status == RequestStatus.COMPLETED:
+            raise HTTPException(
+                status_code=400,
+                detail="Impossible de supprimer une demande complétée"
+            )
+        
+        # Permanently delete the request
+        await db.delete(request)
+        await db.commit()
+        logger.info(f"Request {request_id} ({request.title}) permanently deleted by admin {current_user.username}")
+        return {"message": "Demande supprimée définitivement"}
+    
+    # Regular users can only cancel pending/searching requests
     if request.status not in [RequestStatus.PENDING, RequestStatus.SEARCHING, RequestStatus.AWAITING_APPROVAL]:
         raise HTTPException(
             status_code=400,
