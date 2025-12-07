@@ -60,6 +60,7 @@ class TorrentScraperService:
     ) -> List[TorrentResult]:
         """
         Search YGGtorrent for torrents.
+        Uses YggAPI first (no Cloudflare), falls back to FlareSolverr scraping.
         
         Args:
             query: Search query
@@ -69,6 +70,101 @@ class TorrentScraperService:
         Returns:
             List of torrent results
         """
+        # Try YggAPI first (no Cloudflare, faster)
+        try:
+            logger.info(f"[Scraper] Trying YggAPI for search: {query}")
+            results = await self._search_via_yggapi(query, media_type, page)
+            if results:
+                logger.info(f"[Scraper] YggAPI returned {len(results)} results")
+                return results
+            logger.warning("[Scraper] YggAPI returned no results, trying FlareSolverr fallback")
+        except Exception as e:
+            logger.warning(f"[Scraper] YggAPI search failed: {e}, trying FlareSolverr fallback")
+        
+        # Fallback to FlareSolverr scraping
+        return await self._search_via_flaresolverr(query, media_type, page)
+    
+    async def _search_via_yggapi(
+        self,
+        query: str,
+        media_type: Optional[str] = None,
+        page: int = 0
+    ) -> List[TorrentResult]:
+        """Search torrents via YggAPI (no Cloudflare protection)."""
+        url = f"{self.settings.yggapi_url}/torrents"
+        params = {
+            "q": query,
+            "per_page": "100",  # Max results
+            "order_by": "seeders",
+            "page": page + 1  # YggAPI uses 1-indexed pages
+        }
+        
+        # Add category filter if specified
+        if media_type and media_type in self.CATEGORIES:
+            params["category_id"] = self.CATEGORIES[media_type]
+            logger.info(f"[YggAPI] Using category: {media_type} -> {self.CATEGORIES[media_type]}")
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            results = []
+            for item in data:
+                try:
+                    result = self._parse_yggapi_result(item)
+                    if result:
+                        results.append(result)
+                except Exception as e:
+                    logger.debug(f"[YggAPI] Failed to parse result: {e}")
+            
+            return results
+    
+    def _parse_yggapi_result(self, item: dict) -> Optional[TorrentResult]:
+        """Parse a single result from YggAPI."""
+        name = item.get("title", "")
+        torrent_id = str(item.get("id", ""))
+        
+        if not name or not torrent_id:
+            return None
+        
+        # Analyze name for quality and French audio
+        quality = self._detect_quality(name)
+        has_french = self._detect_french(name)
+        release_group = self._detect_release_group(name)
+        
+        return TorrentResult(
+            id=torrent_id,
+            name=name,
+            size_bytes=item.get("size", 0),
+            size_human=self._format_size(item.get("size", 0)),
+            seeders=item.get("seeders", 0),
+            leechers=item.get("leechers", 0),
+            upload_date=None,  # YggAPI returns datetime string, could parse if needed
+            torrent_url=item.get("link", ""),
+            quality=quality,
+            release_group=release_group,
+            has_french_audio=has_french,
+            has_french_subs=has_french
+        )
+    
+    def _format_size(self, size_bytes: int) -> str:
+        """Format size in bytes to human readable."""
+        if size_bytes >= 1024**3:
+            return f"{size_bytes / (1024**3):.2f} Go"
+        elif size_bytes >= 1024**2:
+            return f"{size_bytes / (1024**2):.2f} Mo"
+        elif size_bytes >= 1024:
+            return f"{size_bytes / 1024:.2f} Ko"
+        return f"{size_bytes} o"
+    
+    async def _search_via_flaresolverr(
+        self,
+        query: str,
+        media_type: Optional[str] = None,
+        page: int = 0
+    ) -> List[TorrentResult]:
+        """Fallback: Search via FlareSolverr scraping."""
         # Build search URL
         category = ""
         if media_type and media_type in self.CATEGORIES:
@@ -316,13 +412,56 @@ class TorrentScraperService:
     
     async def download_torrent_file(self, torrent_id: str) -> Optional[bytes]:
         """
-        Download the .torrent file using FlareSolverr and return its bytes.
-        Cloudflare blocks all direct requests - FlareSolverr is required.
+        Download the .torrent file.
+        Uses YggAPI first (direct, no Cloudflare), falls back to FlareSolverr.
         """
         if not torrent_id:
             logger.error("[Scraper] Cannot download torrent: torrent_id is empty")
             return None
         
+        # Try YggAPI first (no Cloudflare, direct download)
+        try:
+            logger.info(f"[Scraper] Trying YggAPI for torrent download: {torrent_id}")
+            torrent_bytes = await self._download_via_yggapi(torrent_id)
+            if torrent_bytes:
+                logger.info(f"[Scraper] YggAPI download successful ({len(torrent_bytes)} bytes)")
+                return torrent_bytes
+            logger.warning("[Scraper] YggAPI download failed, trying FlareSolverr fallback")
+        except Exception as e:
+            logger.warning(f"[Scraper] YggAPI download failed: {e}, trying FlareSolverr fallback")
+        
+        # Fallback to FlareSolverr
+        return await self._download_via_flaresolverr(torrent_id)
+    
+    async def _download_via_yggapi(self, torrent_id: str) -> Optional[bytes]:
+        """Download torrent file via YggAPI (no Cloudflare)."""
+        passkey = self.settings.ygg_passkey
+        if not passkey or passkey in ['your_passkey', 'votre_passkey', '', None]:
+            logger.warning("[YggAPI] No valid passkey configured, cannot use YggAPI download")
+            return None
+        
+        url = f"{self.settings.yggapi_url}/torrent/{torrent_id}/download"
+        params = {"passkey": passkey}
+        
+        logger.info(f"[YggAPI] Downloading torrent {torrent_id}...")
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, params=params)
+            
+            if response.status_code == 200:
+                content = response.content
+                # Verify it's a valid torrent file (starts with 'd' for bencoded dict)
+                if content and content[0:1] == b'd' and b'announce' in content[:500]:
+                    return content
+                else:
+                    logger.warning(f"[YggAPI] Response is not a valid torrent file (first bytes: {content[:20]})")
+                    return None
+            else:
+                logger.warning(f"[YggAPI] Download failed with status {response.status_code}: {response.text[:200]}")
+                return None
+    
+    async def _download_via_flaresolverr(self, torrent_id: str) -> Optional[bytes]:
+        """Fallback: Download torrent via FlareSolverr."""
         # Build download URL - use passkey if available
         passkey = self.settings.ygg_passkey
         if passkey and passkey not in ['your_passkey', 'votre_passkey', '', None]:

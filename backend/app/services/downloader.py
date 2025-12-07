@@ -130,8 +130,14 @@ class DownloaderService:
             else:
                 raise ValueError("Must provide torrent_url, magnet_link, or torrent_file")
             
-            # Add torrent
-            logger.info(f"Adding torrent URL: {torrent_url[:100]}...")  # Log URL (truncated)
+            # Add torrent - log what we're adding
+            if torrent_file:
+                logger.info(f"Adding torrent from file bytes ({len(torrent_file)} bytes)")
+            elif torrent_url:
+                logger.info(f"Adding torrent URL: {torrent_url[:100]}...")
+            elif magnet_link:
+                logger.info(f"Adding magnet link: {magnet_link[:60]}...")
+            
             result = self.client.torrents_add(**params)
             
             if result == "Ok.":

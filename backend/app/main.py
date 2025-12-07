@@ -85,6 +85,16 @@ if frontend_path.exists():
     # Serve static files
     app.mount("/static", StaticFiles(directory=str(frontend_path / "static")), name="static")
     
+    @app.get("/")
+    async def serve_index():
+        """Serve index.html for root path."""
+        return FileResponse(frontend_path / "index.html")
+    
+    @app.get("/admin")
+    async def serve_admin():
+        """Serve admin.html for /admin path."""
+        return FileResponse(frontend_path / "admin.html")
+    
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
         """Serve the SPA for all non-API routes."""
@@ -92,6 +102,11 @@ if frontend_path.exists():
         file_path = frontend_path / full_path
         if file_path.is_file():
             return FileResponse(file_path)
+        
+        # Check if .html version exists (for clean URLs)
+        html_path = frontend_path / f"{full_path}.html"
+        if html_path.is_file():
+            return FileResponse(html_path)
         
         # Otherwise serve index.html (SPA routing)
         index_path = frontend_path / "index.html"

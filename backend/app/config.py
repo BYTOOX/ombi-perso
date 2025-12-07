@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # FlareSolverr
     flaresolverr_url: str = Field(default="http://localhost:8191/v1", description="FlareSolverr URL")
     
+    # YggAPI (unofficial API - bypasses Cloudflare)
+    yggapi_url: str = Field(default="https://yggapi.eu", description="YggAPI URL (unofficial, no Cloudflare)")
+    
     # Ollama (Local AI) - MUST be configured in .env
     ollama_url: Optional[str] = Field(default=None, description="Ollama API URL - REQUIRED")
     ollama_model: Optional[str] = Field(default=None, description="Ollama model name - REQUIRED")
