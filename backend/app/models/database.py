@@ -94,4 +94,8 @@ def init_db():
             db.add(default_admin)
             db.commit()
             print("✓ Default admin user created (admin/admin)")
+    
+    # Initialize default path settings
+    from ..services.settings_service import init_default_settings
+    init_default_settings()
 

@@ -8,8 +8,8 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from ..config import get_settings
 from ..models.request import MediaType
+from .settings_service import get_settings_service
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class FileRenamerService:
     SUBTITLE_EXTENSIONS = {'.srt', '.ass', '.ssa', '.sub', '.idx', '.vtt'}
     
     def __init__(self):
-        self.settings = get_settings()
+        self._settings_service = get_settings_service()
     
     def process_download(
         self,
@@ -54,8 +54,8 @@ class FileRenamerService:
         if not download_path.exists():
             return {"success": False, "error": f"Path not found: {download_path}"}
         
-        # Get target library path
-        library_path = self.settings.get_library_path(media_type.value)
+        # Get target library path from database settings
+        library_path = self._settings_service.get_library_path(media_type.value)
         if not library_path:
             return {"success": False, "error": f"No library configured for type: {media_type.value}"}
         
@@ -286,14 +286,14 @@ class FileRenamerService:
         return result
     
     def get_library_info(self) -> Dict[str, str]:
-        """Get configured library paths."""
-        return self.settings.library_paths.copy()
+        """Get configured library paths from database."""
+        return self._settings_service.get_library_paths()
     
     def verify_library_paths(self) -> Dict[str, Dict[str, Any]]:
         """Verify that configured library paths exist."""
         results = {}
         
-        for media_type, path in self.settings.library_paths.items():
+        for media_type, path in self._settings_service.get_library_paths().items():
             p = Path(path)
             results[media_type] = {
                 "path": path,

@@ -7,6 +7,7 @@ from plexapi.server import PlexServer
 from plexapi.exceptions import NotFound, Unauthorized
 
 from ..config import get_settings
+from .settings_service import get_settings_service
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class PlexManagerService:
     
     def __init__(self):
         self.settings = get_settings()
+        self._settings_service = get_settings_service()
         self._server: Optional[PlexServer] = None
         self._connection_failed = False  # Cache connection failures
     
@@ -83,12 +85,12 @@ class PlexManagerService:
     def get_library_by_type(self, media_type: str) -> Optional[Any]:
         """
         Get the appropriate library for a media type.
-        Uses the configured library paths mapping.
+        Uses the configured library paths mapping from database.
         """
         if not self.server:
             return None
         
-        target_path = self.settings.get_library_path(media_type)
+        target_path = self._settings_service.get_library_path(media_type)
         if not target_path:
             logger.warning(f"No library path configured for type: {media_type}")
             return None

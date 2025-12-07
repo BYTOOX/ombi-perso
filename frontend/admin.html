@@ -490,6 +490,11 @@
                 </button>
             </li>
             <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#mediaPathsTab">
+                    <i class="bi bi-folder me-2"></i>Médias
+                </button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link" data-bs-toggle="tab" data-bs-target="#logsTab">
                     <i class="bi bi-terminal me-2"></i>Logs
                     <span class="badge bg-danger ms-1" id="logsErrorBadge" style="display:none;">0</span>
@@ -672,6 +677,68 @@
                 </div>
             </div>
 
+            <!-- Media Paths Tab -->
+            <div class="tab-pane fade" id="mediaPathsTab">
+                <div class="row g-4">
+                    <!-- Download Path -->
+                    <div class="col-12">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-download"></i>Dossier de Téléchargement
+                                </h3>
+                            </div>
+                            <p class="text-muted small mb-3">Dossier temporaire où les torrents sont téléchargés avant
+                                d'être déplacés vers les librairies.</p>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="downloadPathInput" placeholder="/downloads">
+                                <button class="btn btn-outline-primary" type="button"
+                                    onclick="openFileBrowser('downloadPathInput')">
+                                    <i class="bi bi-folder2-open me-1"></i>Parcourir
+                                </button>
+                            </div>
+                            <div class="mt-2" id="downloadPathStatus"></div>
+                        </div>
+                    </div>
+
+                    <!-- Library Paths -->
+                    <div class="col-12">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-collection"></i>Chemins des Librairies</h3>
+                            </div>
+                            <p class="text-muted small mb-3">Chemins vers les dossiers Plex pour chaque type de média.
+                            </p>
+                            <div class="table-responsive">
+                                <table class="table table-dark-custom mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:180px;">Type</th>
+                                            <th>Chemin</th>
+                                            <th style="width:100px;">État</th>
+                                            <th style="width:80px;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="libraryPathsBody">
+                                        <tr>
+                                            <td colspan="4" class="text-center py-4">
+                                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Save Button -->
+                    <div class="col-12 text-end">
+                        <button class="btn btn-primary-custom btn-lg" onclick="savePathSettings()">
+                            <i class="bi bi-check-lg me-2"></i>Enregistrer les chemins
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Logs Tab -->
             <div class="tab-pane fade" id="logsTab">
                 <div class="admin-card">
@@ -824,6 +891,48 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                     <button type="button" class="btn btn-primary-custom" onclick="updateUser()">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Browser Modal -->
+    <div class="modal fade" id="fileBrowserModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-folder2-open me-2"></i>Sélectionner un dossier</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Breadcrumb -->
+                    <div class="mb-3 p-2" style="background: rgba(0,0,0,0.2); border-radius: 8px;">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb mb-0" id="fileBrowserBreadcrumb"
+                                style="--bs-breadcrumb-divider: '›';">
+                                <li class="breadcrumb-item"><a href="#" onclick="browsePath('/')"><i
+                                            class="bi bi-house-door"></i></a></li>
+                            </ol>
+                        </nav>
+                    </div>
+
+                    <!-- Current Path -->
+                    <div class="mb-2 text-muted small">
+                        <i class="bi bi-folder me-1"></i>Chemin actuel: <code id="fileBrowserCurrentPath">/</code>
+                    </div>
+
+                    <!-- Directory Listing -->
+                    <div id="fileBrowserListing" style="max-height: 400px; overflow-y: auto;">
+                        <div class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-primary"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary-custom" onclick="selectCurrentPath()">
+                        <i class="bi bi-check-lg me-1"></i>Sélectionner ce dossier
+                    </button>
                 </div>
             </div>
         </div>
@@ -1475,6 +1584,223 @@
         }
 
         setInterval(refreshAll, 60000);
+
+        // =========================================================================
+        // MEDIA PATHS MANAGEMENT
+        // =========================================================================
+
+        let currentPathSettings = null;
+        let fileBrowserTargetInput = null;
+        let fileBrowserCurrentPath = '/';
+
+        // Load path settings when Media tab is shown
+        document.querySelector('[data-bs-target="#mediaPathsTab"]')?.addEventListener('shown.bs.tab', () => {
+            loadPathSettings();
+        });
+
+        async function loadPathSettings() {
+            const token = localStorage.getItem('access_token');
+            try {
+                const response = await fetch(`${API_BASE}/admin/settings/paths`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    currentPathSettings = await response.json();
+                    renderPathSettings();
+                } else {
+                    console.error('Failed to load path settings');
+                }
+            } catch (e) {
+                console.error('Error loading path settings:', e);
+            }
+        }
+
+        function renderPathSettings() {
+            if (!currentPathSettings) return;
+
+            // Download path
+            const downloadPath = currentPathSettings.download_path;
+            document.getElementById('downloadPathInput').value = downloadPath?.path || '/downloads';
+            document.getElementById('downloadPathStatus').innerHTML = getPathStatusBadge(downloadPath);
+
+            // Library paths
+            const tbody = document.getElementById('libraryPathsBody');
+            const typeLabels = {
+                'movie': '🎬 Films',
+                'animated_movie': '🎨 Films Animation',
+                'series': '📺 Séries TV',
+                'animated_series': '🌀 Séries Animées',
+                'anime': '⛩️ Animés (JAP)'
+            };
+
+            const paths = currentPathSettings.library_paths || {};
+            tbody.innerHTML = Object.entries(typeLabels).map(([type, label]) => {
+                const info = paths[type] || { path: '', exists: false, writable: false };
+                return `
+                    <tr>
+                        <td><strong>${label}</strong></td>
+                        <td>
+                            <input type="text" class="form-control form-control-sm" 
+                                   id="libraryPath_${type}" 
+                                   value="${info.path || ''}" 
+                                   placeholder="/media/...">
+                        </td>
+                        <td>${getPathStatusBadge(info)}</td>
+                        <td>
+                            <button class="btn btn-outline-primary btn-sm" onclick="openFileBrowser('libraryPath_${type}')">
+                                <i class="bi bi-folder2-open"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function getPathStatusBadge(pathInfo) {
+            if (!pathInfo) return '<span class="badge bg-secondary">Non configuré</span>';
+            if (!pathInfo.exists) return '<span class="badge bg-danger">N\'existe pas</span>';
+            if (!pathInfo.writable) return '<span class="badge bg-warning text-dark">Non writable</span>';
+            return '<span class="badge bg-success">OK</span>';
+        }
+
+        async function savePathSettings() {
+            const token = localStorage.getItem('access_token');
+
+            const downloadPath = document.getElementById('downloadPathInput').value;
+            const libraryPaths = {};
+
+            ['movie', 'animated_movie', 'series', 'animated_series', 'anime'].forEach(type => {
+                const input = document.getElementById(`libraryPath_${type}`);
+                if (input) {
+                    libraryPaths[type] = input.value;
+                }
+            });
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/settings/paths?download_path=${encodeURIComponent(downloadPath)}&library_paths=${encodeURIComponent(JSON.stringify(libraryPaths))}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    showToast('Chemins enregistrés avec succès', 'success');
+                    await loadPathSettings(); // Reload to get updated status
+                } else {
+                    const error = await response.json();
+                    // Handle error.detail which can be string, array, or object
+                    let errorMsg = 'Erreur lors de l\'enregistrement';
+                    if (error.detail) {
+                        if (typeof error.detail === 'string') {
+                            errorMsg = error.detail;
+                        } else if (Array.isArray(error.detail)) {
+                            errorMsg = error.detail.join(', ');
+                        } else if (typeof error.detail === 'object') {
+                            errorMsg = JSON.stringify(error.detail);
+                        }
+                    }
+                    showToast(errorMsg, 'danger');
+                }
+            } catch (e) {
+                console.error('Error saving path settings:', e);
+                showToast('Erreur réseau', 'danger');
+            }
+        }
+
+        // =========================================================================
+        // FILE BROWSER
+        // =========================================================================
+
+        function openFileBrowser(inputId) {
+            fileBrowserTargetInput = document.getElementById(inputId);
+            const currentValue = fileBrowserTargetInput?.value || '/';
+
+            // Start browsing from current value or root
+            const modal = new bootstrap.Modal(document.getElementById('fileBrowserModal'));
+            modal.show();
+
+            browsePath(currentValue || '/');
+        }
+
+        async function browsePath(path) {
+            fileBrowserCurrentPath = path;
+            document.getElementById('fileBrowserCurrentPath').textContent = path;
+
+            const listing = document.getElementById('fileBrowserListing');
+            listing.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+
+            const token = localStorage.getItem('access_token');
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/filesystem/browse?path=${encodeURIComponent(path)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    renderDirectoryListing(data);
+                    updateBreadcrumb(data.current_path);
+                } else {
+                    const error = await response.json();
+                    listing.innerHTML = `<div class="text-center py-4 text-danger"><i class="bi bi-exclamation-triangle me-2"></i>${error.detail || 'Erreur'}</div>`;
+                }
+            } catch (e) {
+                console.error('Error browsing:', e);
+                listing.innerHTML = '<div class="text-center py-4 text-danger">Erreur de connexion</div>';
+            }
+        }
+
+        function renderDirectoryListing(data) {
+            const listing = document.getElementById('fileBrowserListing');
+
+            if (!data.items || data.items.length === 0) {
+                listing.innerHTML = '<div class="text-center py-4 text-muted">Dossier vide</div>';
+                return;
+            }
+
+            listing.innerHTML = data.items.map(item => `
+                <div class="file-browser-item d-flex align-items-center gap-2 p-2 rounded" 
+                     style="cursor: pointer; border: 1px solid transparent;" 
+                     onmouseover="this.style.background='rgba(139,92,246,0.1)'; this.style.borderColor='var(--primary)'"
+                     onmouseout="this.style.background='transparent'; this.style.borderColor='transparent'"
+                     onclick="browsePath('${item.path.replace(/'/g, "\\'")}')">
+                    <i class="bi ${item.is_parent ? 'bi-arrow-up' : 'bi-folder-fill'}" 
+                       style="color: ${item.is_parent ? 'var(--text-muted)' : 'var(--warning)'};"></i>
+                    <span class="${item.is_parent ? 'text-muted' : ''}">${item.name}</span>
+                    ${item.writable === false ? '<span class="badge bg-warning text-dark ms-auto small">Lecture seule</span>' : ''}
+                </div>
+            `).join('');
+        }
+
+        function updateBreadcrumb(path) {
+            const breadcrumb = document.getElementById('fileBrowserBreadcrumb');
+            const parts = path.split('/').filter(p => p);
+
+            let html = '<li class="breadcrumb-item"><a href="#" onclick="browsePath(\'/\')"><i class="bi bi-house-door"></i></a></li>';
+            let currentPath = '';
+
+            parts.forEach((part, index) => {
+                currentPath += '/' + part;
+                const isLast = index === parts.length - 1;
+                if (isLast) {
+                    html += `<li class="breadcrumb-item active">${part}</li>`;
+                } else {
+                    html += `<li class="breadcrumb-item"><a href="#" onclick="browsePath('${currentPath}')">${part}</a></li>`;
+                }
+            });
+
+            breadcrumb.innerHTML = html;
+        }
+
+        function selectCurrentPath() {
+            if (fileBrowserTargetInput) {
+                fileBrowserTargetInput.value = fileBrowserCurrentPath;
+            }
+            bootstrap.Modal.getInstance(document.getElementById('fileBrowserModal')).hide();
+        }
     </script>
 </body>
 

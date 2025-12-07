@@ -42,9 +42,7 @@ services:
       - QBITTORRENT_URL=${QBITTORRENT_URL}
       - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME:-admin}
       - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD}
-      # Paths
-      - DOWNLOAD_PATH=/downloads
-      - LIBRARY_PATHS=${LIBRARY_PATHS}
+      # Paths are now configured via Admin Panel
       # Notifications
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       # Limits
@@ -52,16 +50,16 @@ services:
       - SEED_DURATION_HOURS=${SEED_DURATION_HOURS:-24}
       - MAX_DOWNLOAD_SIZE_GB=${MAX_DOWNLOAD_SIZE_GB:-1000}
     volumes:
-      - ./data:/app/data                    # SQLite database & logs
-      - ${DOWNLOAD_PATH:-./downloads}:/downloads  # Temporary downloads
-      - ${MEDIA_PATH:-./media}:/media       # Media library (read-only for Plex)
+      - ./data:/app/data # SQLite database & logs
+      - ${DOWNLOAD_PATH:-./downloads}:/downloads # Temporary downloads
+      - ${MEDIA_PATH:-./media}:/media # Media library (read-only for Plex)
     depends_on:
       - redis
       - flaresolverr
     networks:
       - plex-kiosk-network
     extra_hosts:
-      - "host.docker.internal:host-gateway"  # Access host Ollama
+      - "host.docker.internal:host-gateway" # Access host Ollama
 
   # ===========================================================================
   # REDIS - Cache & Queue
@@ -76,7 +74,7 @@ services:
     networks:
       - plex-kiosk-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -94,14 +92,14 @@ services:
       - CAPTCHA_SOLVER=none
       - TZ=Europe/Paris
     ports:
-      - "8191:8191"  # Optional: expose for debugging
+      - "8191:8191" # Optional: expose for debugging
     networks:
       - plex-kiosk-network
     # Note: FlareSolverr uses ~500MB RAM
 
-# ===========================================================================
-# NETWORKS & VOLUMES
-# ===========================================================================
+    # ===========================================================================
+    # NETWORKS & VOLUMES
+    # ===========================================================================
 networks:
   plex-kiosk-network:
     driver: bridge

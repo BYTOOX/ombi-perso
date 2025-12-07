@@ -473,6 +473,81 @@ async def get_plex_libraries(
 
 
 # =========================================================================
+# PATH SETTINGS
+# =========================================================================
+
+@router.get("/settings/paths")
+async def get_path_settings(
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    Obtenir la configuration des chemins (download_path, library_paths).
+    Retourne les chemins avec leur état de validation.
+    """
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    return service.get_all_path_settings()
+
+
+@router.put("/settings/paths")
+async def update_path_settings(
+    download_path: str = Query(..., description="Chemin de téléchargement"),
+    library_paths: str = Query(..., description="JSON des chemins de librairie"),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    Mettre à jour la configuration des chemins.
+    Sauvegarde en base de données.
+    """
+    import json
+    from ...services.settings_service import get_settings_service
+    
+    # Parse library_paths from JSON string
+    try:
+        parsed_library_paths = json.loads(library_paths)
+    except json.JSONDecodeError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid JSON for library_paths: {str(e)}"
+        )
+    
+    service = get_settings_service()
+    result = service.update_all_path_settings(download_path, parsed_library_paths)
+    
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("errors", ["Erreur de validation"])
+        )
+    
+    return result
+
+
+@router.get("/filesystem/browse")
+async def browse_filesystem(
+    path: str = Query("/", description="Chemin du dossier à parcourir"),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    Parcourir le système de fichiers pour le file browser.
+    Retourne uniquement les dossiers (pas les fichiers).
+    """
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    result = service.browse_directory(path)
+    
+    if result.get("error"):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("error")
+        )
+    
+    return result
+
+
+# =========================================================================
 # LOGS
 # =========================================================================
 
