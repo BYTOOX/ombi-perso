@@ -51,6 +51,8 @@ class MediaSearchResult(BaseModel):
     # Availability check
     already_available: bool = False
     plex_rating_key: Optional[str] = None
+    available_quality: Optional[str] = None  # e.g., "1080p", "4K"
+    available_seasons: List[int] = Field(default_factory=list)  # For series
 
 
 class MediaDetails(MediaSearchResult):

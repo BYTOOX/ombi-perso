@@ -153,7 +153,28 @@
                             <span id="modalRating"></span>
                         </div>
                         <div class="modal-genres" id="modalGenres"></div>
+
+                        <!-- Availability Info Section (hidden by default) -->
+                        <div class="availability-info d-none" id="modalAvailability">
+                            <div class="availability-header">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>Dans votre bibliothèque</span>
+                            </div>
+                            <div class="availability-details" id="availabilityDetails">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+
                         <p class="modal-overview" id="modalOverview">Description...</p>
+
+                        <!-- Season Selector (hidden by default, for series only) -->
+                        <div class="season-selector d-none" id="seasonSelector">
+                            <h5>Saisons à demander</h5>
+                            <div class="season-grid" id="seasonGrid">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+
                         <div class="modal-actions" id="modalActions">
                             <button class="btn btn-primary" id="requestBtn">
                                 <i class="bi bi-plus-circle"></i> Demander

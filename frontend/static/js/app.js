@@ -146,6 +146,15 @@ const api = {
         return this.request(`/requests/${requestId}`, {
             method: 'DELETE'
         });
+    },
+
+    // Plex availability endpoints
+    async getAvailability(mediaType, tmdbId) {
+        return this.request(`/plex/availability/${mediaType}/${tmdbId}`);
+    },
+
+    async getSeasonsAvailability(tmdbId) {
+        return this.request(`/plex/availability/seasons/${tmdbId}`);
     }
 };
 
@@ -800,7 +809,7 @@ function scrollRow(rowId, direction) {
 /**
  * Open media detail modal
  */
-function openMediaModal(media) {
+async function openMediaModal(media) {
     state.selectedMedia = media;
 
     const modal = document.getElementById('mediaModal');
@@ -827,6 +836,114 @@ function openMediaModal(media) {
         `<span class="genre-tag">${g}</span>`
     ).join('');
 
+    // Reset availability section
+    const availabilitySection = document.getElementById('modalAvailability');
+    const availabilityDetails = document.getElementById('availabilityDetails');
+    const seasonSelector = document.getElementById('seasonSelector');
+    const seasonGrid = document.getElementById('seasonGrid');
+
+    availabilitySection.classList.add('d-none');
+    seasonSelector.classList.add('d-none');
+
+    // Fetch and display availability info if available
+    if (media.already_available) {
+        try {
+            const availability = await api.getAvailability(media.media_type, media.id);
+            if (availability && availability.available) {
+                // Show availability section
+                availabilitySection.classList.remove('d-none');
+
+                // Build details HTML
+                const details = [];
+
+                if (availability.quality_info?.resolution) {
+                    const codec = availability.quality_info?.video_codec || '';
+                    details.push(`<span class="availability-detail"><i class="bi bi-display"></i> ${availability.quality_info.resolution} ${codec}</span>`);
+                }
+
+                if (availability.audio_languages?.length > 0) {
+                    const langs = availability.audio_languages.map(formatLanguage).join(', ');
+                    details.push(`<span class="availability-detail"><i class="bi bi-volume-up"></i> ${langs}</span>`);
+                }
+
+                if (availability.subtitle_languages?.length > 0) {
+                    const subs = availability.subtitle_languages.map(formatLanguage).join(', ');
+                    details.push(`<span class="availability-detail"><i class="bi bi-chat-quote"></i> ${subs}</span>`);
+                }
+
+                if (availability.file_size_gb) {
+                    details.push(`<span class="availability-detail"><i class="bi bi-hdd"></i> ${availability.file_size_gb} GB</span>`);
+                }
+
+                // For series: show available seasons
+                if (availability.seasons_available?.length > 0) {
+                    const seasonsText = availability.seasons_available.length > 5
+                        ? `Saisons 1-${availability.seasons_available.length}`
+                        : `Saisons ${availability.seasons_available.join(', ')}`;
+                    details.push(`<span class="availability-detail"><i class="bi bi-collection"></i> ${seasonsText}</span>`);
+                }
+
+                availabilityDetails.innerHTML = details.join('');
+            }
+        } catch (e) {
+            console.log('Could not fetch availability details:', e);
+        }
+    }
+
+    // Handle series: show season selector
+    const isSeries = media.media_type === 'tv' || media.media_type === 'series' || media.media_type === 'anime';
+    if (isSeries && !media.already_available) {
+        try {
+            // For now, generate a simple season selector
+            // In the future, we can fetch seasons from TMDB and compare with available
+            const seasonsAvailability = await api.getSeasonsAvailability(media.id).catch(() => null);
+            const availableSeasons = seasonsAvailability?.seasons || [];
+
+            // Get total seasons (we'd need to fetch this from TMDB, for now use a default)
+            const totalSeasons = media.seasons_count || 1;
+
+            if (totalSeasons > 0) {
+                seasonSelector.classList.remove('d-none');
+
+                let seasonsHtml = '';
+                for (let i = 1; i <= Math.min(totalSeasons, 10); i++) {
+                    const isAvailable = availableSeasons.includes(i);
+                    seasonsHtml += `
+                        <label class="season-checkbox ${isAvailable ? 'available' : ''}" title="${isAvailable ? 'Déjà disponible' : 'Non disponible'}">
+                            <input type="checkbox" name="seasons" value="${i}" 
+                                   ${isAvailable ? 'disabled' : ''}>
+                            <span class="season-number">S${i}</span>
+                            ${isAvailable ? '<i class="bi bi-check-circle-fill season-check"></i>' : ''}
+                        </label>
+                    `;
+                }
+
+                // Add "All seasons" option if not all available
+                if (availableSeasons.length < totalSeasons) {
+                    seasonsHtml = `
+                        <label class="season-checkbox season-all">
+                            <input type="checkbox" name="seasons" value="all" id="selectAllSeasons">
+                            <span class="season-number">Toutes</span>
+                        </label>
+                    ` + seasonsHtml;
+                }
+
+                seasonGrid.innerHTML = seasonsHtml;
+
+                // Add event listener for "select all"
+                const selectAll = document.getElementById('selectAllSeasons');
+                if (selectAll) {
+                    selectAll.addEventListener('change', (e) => {
+                        const checkboxes = seasonGrid.querySelectorAll('input[name="seasons"]:not([value="all"]):not(:disabled)');
+                        checkboxes.forEach(cb => cb.checked = e.target.checked);
+                    });
+                }
+            }
+        } catch (e) {
+            console.log('Could not fetch seasons:', e);
+        }
+    }
+
     // Actions
     const actionsContainer = document.getElementById('modalActions');
     if (media.already_available) {
@@ -852,6 +969,32 @@ function openMediaModal(media) {
     // Show modal
     const bsModal = new bootstrap.Modal(modal);
     bsModal.show();
+}
+
+/**
+ * Format language code to readable name
+ */
+function formatLanguage(code) {
+    const langMap = {
+        'fra': '🇫🇷 Français',
+        'fre': '🇫🇷 Français',
+        'french': '🇫🇷 Français',
+        'eng': '🇬🇧 English',
+        'english': '🇬🇧 English',
+        'jpn': '🇯🇵 日本語',
+        'japanese': '🇯🇵 日本語',
+        'ger': '🇩🇪 Deutsch',
+        'german': '🇩🇪 Deutsch',
+        'spa': '🇪🇸 Español',
+        'spanish': '🇪🇸 Español',
+        'ita': '🇮🇹 Italiano',
+        'italian': '🇮🇹 Italiano',
+        'por': '🇵🇹 Português',
+        'kor': '🇰🇷 한국어',
+        'chi': '🇨🇳 中文',
+        'und': 'Unknown'
+    };
+    return langMap[code?.toLowerCase()] || code?.toUpperCase() || 'Unknown';
 }
 
 /**
@@ -896,7 +1039,8 @@ async function requestMedia() {
 
     } catch (error) {
         console.error('Request error:', error);
-        UI.showToast('Erreur lors de la demande', 'danger');
+        const errorMessage = error.message || 'Erreur lors de la demande';
+        UI.showToast(errorMessage, 'danger');
     } finally {
         if (requestBtn) {
             requestBtn.disabled = false;

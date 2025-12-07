@@ -65,7 +65,7 @@ class Settings(BaseSettings):
             "movie": "/media/Films",
             "animated_movie": "/media/Films d'animation",
             "series": "/media/Série TV",
-            "animated_series_us": "/media/Série Animée (US)",
+            "animated_series": "/media/Série Animée",
             "anime": "/media/Animé (JAP)"
         },
         description="Library paths mapping (type -> path)"

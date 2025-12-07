@@ -25,7 +25,7 @@ class TorrentScraperService:
         "movie": "2145",          # Films
         "animated_movie": "2178", # Films d'animation
         "series": "2184",         # Séries TV
-        "animated_series_us": "2182",  # Séries animées US
+        "animated_series": "2182",  # Séries animées
         "anime": "2179"           # Anime
     }
     

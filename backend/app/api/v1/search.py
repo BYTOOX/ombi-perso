@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 
 from ...services.media_search import MediaSearchService, get_media_search_service
 from ...services.plex_manager import PlexManagerService, get_plex_manager_service
+from ...services.plex_cache_service import PlexCacheService, get_plex_cache_service
 from ...schemas.media import MediaSearchResult, MediaDetails, MediaType
 from .auth import get_current_user
 from ...models import User
@@ -23,12 +24,13 @@ async def search_media(
     page: int = Query(1, ge=1, le=100, description="Numéro de page"),
     current_user: User = Depends(get_current_user),
     search_service: MediaSearchService = Depends(get_media_search_service),
-    plex_service: PlexManagerService = Depends(get_plex_manager_service)
+    plex_cache: PlexCacheService = Depends(get_plex_cache_service)
 ):
     """
     Recherche unifiée de médias.
     
     Retourne des résultats de TMDB (films/séries) et AniList (animés).
+    Les résultats sont enrichis avec le statut de disponibilité Plex.
     """
     results = await search_service.search(
         query=q,
@@ -37,16 +39,20 @@ async def search_media(
         page=page
     )
     
-    # Check availability on Plex
-    for result in results:
-        plex_check = plex_service.check_exists(
-            title=result.title,
-            year=result.year,
-            media_type=result.media_type
-        )
-        result.already_available = plex_check.get("exists", False)
-        if plex_check.get("rating_key"):
-            result.plex_rating_key = plex_check.get("rating_key")
+    # Fast batch availability check using cache
+    if results:
+        # Build list of items to check
+        items_to_check = [{"id": r.id, "media_type": r.media_type} for r in results]
+        availability = plex_cache.check_availability_batch(items_to_check)
+        
+        # Enrich results with availability info
+        for result in results:
+            if str(result.id) in availability:
+                avail_info = availability[str(result.id)]
+                result.already_available = avail_info.available
+                # Add quality hint for display
+                if avail_info.quality:
+                    result.available_quality = avail_info.quality
     
     return results
 

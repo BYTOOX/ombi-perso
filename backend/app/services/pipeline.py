@@ -155,7 +155,7 @@ class RequestPipelineService:
             MediaType.MOVIE: "movie",
             MediaType.ANIMATED_MOVIE: "animated_movie",
             MediaType.SERIES: "series",
-            MediaType.ANIMATED_SERIES_US: "animated_series_us",
+            MediaType.ANIMATED_SERIES: "animated_series",
             MediaType.ANIME: "anime"
         }
         

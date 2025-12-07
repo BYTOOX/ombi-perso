@@ -17,7 +17,7 @@ class MediaType(str, Enum):
     MOVIE = "movie"
     ANIMATED_MOVIE = "animated_movie"
     SERIES = "series"
-    ANIMATED_SERIES_US = "animated_series_us"
+    ANIMATED_SERIES = "animated_series"
     ANIME = "anime"
 
 
@@ -81,7 +81,7 @@ class MediaRequest(Base):
     @property
     def is_series(self) -> bool:
         """Check if this is a series-type request."""
-        return self.media_type in (MediaType.SERIES, MediaType.ANIMATED_SERIES_US, MediaType.ANIME)
+        return self.media_type in (MediaType.SERIES, MediaType.ANIMATED_SERIES, MediaType.ANIME)
     
     def __repr__(self):
         return f"<MediaRequest {self.title} ({self.status.value})>"
