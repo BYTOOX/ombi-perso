@@ -156,11 +156,15 @@ class FileRenamerService:
         try:
             if media_type == MediaType.MOVIE or media_type == MediaType.ANIMATED_MOVIE:
                 resolved = asyncio.get_event_loop().run_until_complete(
-                    self._title_resolver.resolve_movie(title, year)
+                    self._title_resolver.resolve_title(title, "movie", year, tmdb_id)
+                )
+            elif media_type == MediaType.ANIME or media_type == MediaType.ANIME_MOVIE:
+                resolved = asyncio.get_event_loop().run_until_complete(
+                    self._title_resolver.resolve_title(title, "anime", year, tmdb_id, tvdb_id)
                 )
             else:
                 resolved = asyncio.get_event_loop().run_until_complete(
-                    self._title_resolver.resolve_series(title, year)
+                    self._title_resolver.resolve_title(title, "series", year, tmdb_id, tvdb_id)
                 )
             
             if resolved.get("confidence", 0) > 0.5:

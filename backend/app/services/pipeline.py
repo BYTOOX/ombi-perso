@@ -338,11 +338,15 @@ class RequestPipelineService:
                 raise ValueError("Download path not found")
             
             # Rename and move to library
+            # Pass the external_id so renamer doesn't need to do async API lookup
+            tmdb_id = int(request.external_id) if request.external_id and request.external_id.isdigit() else None
+            
             result = self.renamer.process_download(
                 download_path=download_path,
                 media_type=request.media_type,
                 media_title=request.title,
-                year=request.year
+                year=request.year,
+                tmdb_id=tmdb_id
             )
             
             if not result.get("success"):

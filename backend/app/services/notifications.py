@@ -115,6 +115,30 @@ class NotificationService:
             ]
         )
     
+    async def notify_request_completed(
+        self,
+        title: str,
+        media_type: str,
+        username: str,
+        poster_url: Optional[str] = None,
+        final_path: Optional[str] = None
+    ):
+        """Notify when a request is fully completed and available."""
+        fields = [
+            {"name": "Type", "value": media_type.replace("_", " ").title(), "inline": True},
+            {"name": "Statut", "value": "✅ Disponible", "inline": True}
+        ]
+        if final_path:
+            fields.append({"name": "Emplacement", "value": final_path[:50] + "..." if len(final_path) > 50 else final_path, "inline": False})
+        
+        await self._send_discord(
+            title="🎉 Demande terminée !",
+            description=f"**{title}**\n\nDemandé par **{username}**",
+            color=self.COLORS["success"],
+            thumbnail=poster_url,
+            fields=fields
+        )
+    
     async def notify_error(
         self,
         title: str,
