@@ -217,12 +217,15 @@ class FileRenamerService:
         target_path = target_folder / new_name
         
         try:
+            logger.info(f"📁 Renaming movie:")
+            logger.info(f"   FROM: {video_path}")
+            logger.info(f"   TO:   {target_path}")
             shutil.move(str(video_path), str(target_path))
             
             # Also move subtitles if present (French only as per settings)
             self._move_subtitles(video_path, target_folder, folder_name)
             
-            logger.info(f"Moved movie to: {target_path}")
+            logger.info(f"✅ Moved movie successfully: {target_path}")
             return {
                 "success": True,
                 "final_path": str(target_path),
@@ -302,8 +305,11 @@ class FileRenamerService:
         target_path = target_folder / new_name
         
         try:
+            logger.info(f"📁 Renaming episode:")
+            logger.info(f"   FROM: {video_path}")
+            logger.info(f"   TO:   {target_path}")
             shutil.move(str(video_path), str(target_path))
-            logger.info(f"Moved episode to: {target_path}")
+            logger.info(f"✅ Moved episode successfully: {target_path}")
             return {
                 "success": True,
                 "final_path": str(target_path),
