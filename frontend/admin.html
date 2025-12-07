@@ -1032,7 +1032,19 @@
 
                     const statusColors = { pending: 'warning', searching: 'info', downloading: 'primary', processing: 'info', completed: 'success', error: 'danger', cancelled: 'secondary' };
 
-                    tbody.innerHTML = requests.map(req => `
+                    tbody.innerHTML = requests.map(req => {
+                        const isCompleted = req.status === 'completed';
+                        const isError = req.status === 'error';
+
+                        let actionButtons = '';
+                        if (isError) {
+                            actionButtons += `<button class="btn btn-warning btn-sm" onclick="retryRequest(${req.id})" title="Réessayer"><i class="bi bi-arrow-repeat"></i></button>`;
+                        }
+                        if (!isCompleted) {
+                            actionButtons += `<button class="btn btn-outline-danger btn-sm" onclick="deleteRequest(${req.id}, '${req.title.replace(/'/g, "\\'")}')" title="Supprimer"><i class="bi bi-trash"></i></button>`;
+                        }
+
+                        return `
                         <tr>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
@@ -1049,9 +1061,9 @@
                                 ${req.status_message ? `<div class="text-muted small">${req.status_message}</div>` : ''}
                             </td>
                             <td>${new Date(req.created_at).toLocaleDateString('fr-FR')}</td>
-                            <td>${req.status === 'error' ? `<button class="btn btn-warning btn-sm" onclick="retryRequest(${req.id})"><i class="bi bi-arrow-repeat"></i></button>` : ''}</td>
+                            <td><div class="d-flex gap-1">${actionButtons}</div></td>
                         </tr>
-                    `).join('');
+                    `}).join('');
                 } else {
                     console.error('Requests API error:', response.status, await response.text());
                     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Erreur de chargement</td></tr>';
@@ -1059,6 +1071,32 @@
             } catch (e) {
                 console.error('loadRequests exception:', e);
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Erreur de chargement</td></tr>';
+            }
+        }
+
+        async function deleteRequest(requestId, title) {
+            if (!confirm(`Supprimer définitivement la demande "${title}" ?`)) {
+                return;
+            }
+
+            const token = localStorage.getItem('access_token');
+            try {
+                const response = await fetch(`${API_BASE}/requests/${requestId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    showToast('Demande supprimée', 'success');
+                    await loadRequests();
+                    await loadStats();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Erreur lors de la suppression', 'danger');
+                }
+            } catch (e) {
+                console.error('Delete request error:', e);
+                showToast('Erreur réseau', 'danger');
             }
         }
 

@@ -10,7 +10,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config import get_settings
-from ...models import get_db, User, MediaRequest
+from ...models import get_db, User, MediaRequest, Download
 from ...models.request import RequestStatus, MediaType
 from ...schemas.request import (
     RequestCreate, RequestResponse, RequestUpdate,
@@ -377,6 +377,13 @@ async def delete_request(
                 status_code=400,
                 detail="Impossible de supprimer une demande complétée"
             )
+        
+        # Delete related downloads first
+        downloads_result = await db.execute(
+            select(Download).where(Download.request_id == request_id)
+        )
+        for download in downloads_result.scalars().all():
+            await db.delete(download)
         
         # Permanently delete the request
         await db.delete(request)
