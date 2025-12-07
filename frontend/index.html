@@ -33,42 +33,62 @@
                     <span class="d-none d-md-inline">Plex Kiosk</span>
                 </a>
 
-                <!-- Search -->
-                <div class="search-container">
-                    <i class="bi bi-search search-icon"></i>
-                    <input type="text" id="searchInput" class="search-input"
-                        placeholder="Rechercher un film, une série, un animé..." autocomplete="off">
-                    <div id="searchSpinner" class="search-spinner d-none">
-                        <span class="spinner-border spinner-border-sm text-primary"></span>
+                <!-- Category Pills (truly centered) -->
+                <div class="navbar-center">
+                    <div class="category-pills" id="categoryPills">
+                        <button class="category-pill active" data-category="movie">
+                            <i class="bi bi-film"></i>
+                            <span>Films</span>
+                        </button>
+                        <button class="category-pill" data-category="tv">
+                            <i class="bi bi-tv"></i>
+                            <span>Séries</span>
+                        </button>
+                        <button class="category-pill" data-category="anime">
+                            <i class="bi bi-stars"></i>
+                            <span>Animés</span>
+                        </button>
                     </div>
                 </div>
 
-                <!-- User Menu -->
-                <div class="user-menu">
-                    <div class="user-info">
-                        <div class="user-name" id="userName">Utilisateur</div>
-                        <div class="user-requests" id="userRequests">— demandes restantes</div>
-                    </div>
-                    <div class="dropdown">
-                        <div class="user-avatar" id="userAvatar" data-bs-toggle="dropdown" aria-expanded="false">
-                            U
+                <!-- Right Section: Search + User Menu -->
+                <div class="navbar-right">
+                    <div class="search-container">
+                        <div class="search-wrapper">
+                            <i class="bi bi-search search-icon"></i>
+                            <input type="text" id="searchInput" class="search-input" placeholder="Rechercher..."
+                                autocomplete="off">
+                            <div id="searchSpinner" class="search-spinner d-none">
+                                <span class="spinner-border spinner-border-sm text-primary"></span>
+                            </div>
                         </div>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="/requests.html">
-                                    <i class="bi bi-list-check me-2"></i>Mes demandes
-                                </a></li>
-                            <li id="adminLink" class="d-none">
-                                <a class="dropdown-item" href="/admin.html">
-                                    <i class="bi bi-gear me-2"></i>Administration
-                                </a>
-                            </li>
-                            <li>
-                                <hr class="dropdown-divider">
-                            </li>
-                            <li><a class="dropdown-item text-danger" href="#" id="logoutBtn">
-                                    <i class="bi bi-box-arrow-right me-2"></i>Déconnexion
-                                </a></li>
-                        </ul>
+                    </div>
+                    <div class="user-menu">
+                        <div class="user-info">
+                            <div class="user-name" id="userName">Utilisateur</div>
+                            <div class="user-requests" id="userRequests">— demandes restantes</div>
+                        </div>
+                        <div class="dropdown">
+                            <div class="user-avatar" id="userAvatar" data-bs-toggle="dropdown" aria-expanded="false">
+                                U
+                            </div>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="/requests.html">
+                                        <i class="bi bi-list-check me-2"></i>Mes demandes
+                                    </a></li>
+                                <li id="adminLink" class="d-none">
+                                    <a class="dropdown-item" href="/admin.html">
+                                        <i class="bi bi-gear me-2"></i>Administration
+                                    </a>
+                                </li>
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                <li><a class="dropdown-item text-danger" href="#" id="logoutBtn">
+                                        <i class="bi bi-box-arrow-right me-2"></i>Déconnexion
+                                    </a></li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -85,13 +105,26 @@
         </div>
     </main>
 
-    <!-- Filter Tabs (shown during search) -->
-    <div id="filterContainer" class="container-fluid px-4 d-none">
-        <div class="filter-tabs">
-            <button class="filter-tab active" data-type="all">Tout</button>
-            <button class="filter-tab" data-type="movie">Films</button>
-            <button class="filter-tab" data-type="tv">Séries</button>
-            <button class="filter-tab" data-type="anime">Animés</button>
+    <!-- Gallery Modal (Tout voir) -->
+    <div class="modal fade modal-gallery" id="galleryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="gallery-header">
+                    <h2 class="gallery-title">
+                        <i class="bi bi-film"></i>
+                        <span id="galleryTitle">Titre</span>
+                        <span class="gallery-count" id="galleryCount">0 résultats</span>
+                    </h2>
+                    <button type="button" class="gallery-close" data-bs-dismiss="modal" aria-label="Close">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="gallery-body">
+                    <div class="gallery-grid" id="galleryGrid">
+                        <!-- Media cards will be dynamically inserted -->
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

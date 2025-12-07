@@ -20,12 +20,24 @@ const state = {
     searchResults: [],
     searching: false,
     mediaType: 'all',
+    currentCategory: 'movie', // movie, tv, anime
     selectedMedia: null,
     userStats: null,
     trending: {
         movies: [],
         series: [],
         anime: []
+    },
+    categoryContent: {
+        hero: null,
+        top_rated: [],
+        classics: [],
+        hidden_gems: [],
+        random: [],
+        cat1: [],
+        cat2: [],
+        cat3: [],
+        cat4: []
     }
 };
 
@@ -110,6 +122,14 @@ const api = {
         return this.request(`/search/trending?type=${type}`);
     },
 
+    async getDiscover(type = 'movie', category = 'top_rated') {
+        return this.request(`/search/discover?type=${type}&category=${category}`);
+    },
+
+    async getHero(type = 'movie') {
+        return this.request(`/search/hero?type=${type}`);
+    },
+
     // Request endpoints
     async createRequest(mediaData) {
         return this.request('/requests', {
@@ -167,10 +187,14 @@ const UI = {
     },
 
     /**
-     * Create media row HTML
+     * Create media row HTML with modern navigation
      */
-    createMediaRow(title, icon, items, id) {
+    createMediaRow(title, icon, items, id, type = 'movie') {
         if (!items || items.length === 0) return '';
+
+        // Store items for gallery modal access
+        if (!window.rowData) window.rowData = {};
+        window.rowData[id] = { title, icon, items, type };
 
         return `
             <section class="media-section" id="${id}">
@@ -178,7 +202,7 @@ const UI = {
                     <h2 class="section-title">
                         <i class="bi bi-${icon}"></i> ${title}
                     </h2>
-                    <a href="#" class="section-link">
+                    <a href="#" class="section-link" onclick="openGalleryModal('${id}'); return false;">
                         Tout voir <i class="bi bi-chevron-right"></i>
                     </a>
                 </div>
@@ -191,6 +215,7 @@ const UI = {
                 <div class="row-nav next" onclick="scrollRow('${id}', 1)">
                     <i class="bi bi-chevron-right"></i>
                 </div>
+                <div class="scroll-indicators" id="${id}-indicators"></div>
             </section>
         `;
     },
@@ -257,9 +282,9 @@ const UI = {
     },
 
     /**
-     * Create search results grid
+     * Create search results grid - grouped by type for better organization
      */
-    createSearchResults(results) {
+    createSearchResults(results, activeFilter = 'all') {
         if (results.length === 0) {
             return `
                 <div class="empty-state">
@@ -270,14 +295,118 @@ const UI = {
             `;
         }
 
+        // If a specific type is selected, show flat grid with that type only
+        if (activeFilter !== 'all') {
+            const filteredResults = results.filter(item => {
+                if (activeFilter === 'movie') return item.media_type === 'movie';
+                if (activeFilter === 'tv') return item.media_type === 'tv' || item.media_type === 'series';
+                if (activeFilter === 'anime') return item.media_type === 'anime';
+                return true;
+            });
+
+            return `
+                <div class="search-results-modern fade-in">
+                    <div class="results-header mb-4">
+                        <span class="text-muted">${filteredResults.length} résultat(s) trouvé(s)</span>
+                    </div>
+                    <div class="results-mini-grid">
+                        ${filteredResults.slice(0, 18).map(item => this.createMediaCardWithBadge(item)).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Group results by type for "all" filter
+        const movies = results.filter(r => r.media_type === 'movie');
+        const series = results.filter(r => r.media_type === 'tv' || r.media_type === 'series');
+        const anime = results.filter(r => r.media_type === 'anime');
+
+        let html = '<div class="search-results-modern fade-in">';
+        html += `<div class="results-header mb-4"><span class="text-muted">${results.length} résultat(s) trouvé(s)</span></div>`;
+
+        // Movies section
+        if (movies.length > 0) {
+            html += this.createResultSection('Films', 'film', movies, 'movie');
+        }
+
+        // Series section
+        if (series.length > 0) {
+            html += this.createResultSection('Séries', 'tv', series, 'tv');
+        }
+
+        // Anime section
+        if (anime.length > 0) {
+            html += this.createResultSection('Animés', 'stars', anime, 'anime');
+        }
+
+        html += '</div>';
+        return html;
+    },
+
+    /**
+     * Create a section for grouped search results
+     */
+    createResultSection(title, icon, items, type) {
+        const maxVisible = 6;
+        const visibleItems = items.slice(0, maxVisible);
+        const hasMore = items.length > maxVisible;
+
+        // Store for "voir plus" functionality
+        if (!window.searchSections) window.searchSections = {};
+        window.searchSections[type] = { title, icon, items };
+
         return `
-            <div class="search-results fade-in">
-                <div class="results-header mb-4">
-                    <span class="text-muted">${results.length} résultat(s) trouvé(s)</span>
+            <div class="results-section">
+                <div class="results-section-header">
+                    <h3 class="results-section-title">
+                        <i class="bi bi-${icon}"></i>
+                        ${title}
+                        <span class="results-section-count">${items.length}</span>
+                    </h3>
+                    ${hasMore ? `
+                        <a href="#" class="results-expand" onclick="expandSearchSection('${type}'); return false;">
+                            Voir plus <i class="bi bi-chevron-right"></i>
+                        </a>
+                    ` : ''}
                 </div>
-                <div class="results-grid">
-                    ${results.map(item => this.createMediaCard(item)).join('')}
+                <div class="results-mini-grid">
+                    ${visibleItems.map(item => this.createMediaCardWithBadge(item)).join('')}
                 </div>
+            </div>
+        `;
+    },
+
+    /**
+     * Create media card with type badge
+     */
+    createMediaCardWithBadge(media) {
+        const posterUrl = media.poster_url || '/static/img/no-poster.png';
+        const rating = media.rating ? media.rating.toFixed(1) : null;
+        const typeLabel = this.getMediaTypeLabel(media.media_type);
+        const typeClass = media.media_type || 'movie';
+
+        return `
+            <div class="media-card" data-media-id="${media.id}" data-media-source="${media.source || 'tmdb'}">
+                <div class="media-poster">
+                    <span class="media-type-badge ${typeClass}">${typeLabel}</span>
+                    <img src="${posterUrl}" alt="${media.title}" loading="lazy" 
+                         onerror="this.src='/static/img/no-poster.png'">
+                    ${rating ? `<span class="media-badge rating">⭐ ${rating}</span>` : ''}
+                    ${media.already_available ? '<span class="media-badge available">Disponible</span>' : ''}
+                    ${media.requested ? '<span class="media-badge requested">Demandé</span>' : ''}
+                    <div class="media-overlay">
+                        <div class="media-overlay-meta">
+                            ${media.year || '—'} • ${typeLabel}
+                        </div>
+                        <div class="media-overlay-actions">
+                            <button class="btn btn-primary btn-card btn-view-details">
+                                <i class="bi bi-info-circle"></i> Détails
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="media-title">${media.title}</div>
+                <div class="media-year">${media.year || ''}</div>
             </div>
         `;
     },
@@ -392,54 +521,219 @@ function updateStatsUI() {
 }
 
 /**
- * Load trending content
+ * Load category-based content (Films/Séries/Animés)
  */
-async function loadTrendingContent() {
+async function loadCategoryContent(category = null) {
     const mainContent = document.getElementById('mainContent');
     if (!mainContent) return;
+
+    // Use provided category or current state
+    const type = category || state.currentCategory;
+    state.currentCategory = type;
+
+    // Update category pills UI
+    document.querySelectorAll('.category-pill').forEach(pill => {
+        pill.classList.toggle('active', pill.dataset.category === type);
+    });
 
     mainContent.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
 
     try {
-        // Load trending movies
-        const trendingMovies = await api.getTrending('movie');
-        state.trending.movies = Array.isArray(trendingMovies) ? trendingMovies : (trendingMovies?.results || []);
+        // Fetch all content in parallel
+        const [heroData, topRated, classics, hiddenGems, random, cat1, cat2, cat3, cat4] = await Promise.all([
+            api.getHero(type),
+            api.getDiscover(type, 'top_rated'),
+            api.getDiscover(type, 'classics'),
+            api.getDiscover(type, 'hidden_gems'),
+            api.getDiscover(type, 'random'),
+            // Category-specific tiles
+            api.getDiscover(type, type === 'movie' ? 'blockbusters' : type === 'tv' ? 'binge' : 'shonen'),
+            api.getDiscover(type, type === 'movie' ? 'comedy' : type === 'tv' ? 'airing' : 'romance'),
+            api.getDiscover(type, type === 'movie' ? 'thriller' : type === 'tv' ? 'crime' : 'isekai'),
+            api.getDiscover(type, type === 'movie' ? 'award_winners' : type === 'tv' ? 'miniseries' : 'psychological')
+        ]);
 
-        // Load trending series
-        const trendingSeries = await api.getTrending('tv');
-        state.trending.series = Array.isArray(trendingSeries) ? trendingSeries : (trendingSeries?.results || []);
+        // Store in state
+        state.categoryContent = {
+            hero: heroData,
+            top_rated: topRated?.results || [],
+            classics: classics?.results || [],
+            hidden_gems: hiddenGems?.results || [],
+            random: random?.results || [],
+            cat1: cat1?.results || [],
+            cat2: cat2?.results || [],
+            cat3: cat3?.results || [],
+            cat4: cat4?.results || []
+        };
+
+        // Get category labels and specific tile configs
+        const tileConfigs = {
+            movie: {
+                name: 'Films', icon: 'film',
+                cat1: { title: '💥 Blockbusters', icon: 'fire' },
+                cat2: { title: '😂 Comédies', icon: 'emoji-smile' },
+                cat3: { title: '🌙 Frissons', icon: 'moon-stars' },
+                cat4: { title: '🏆 Oscarisés', icon: 'award' }
+            },
+            tv: {
+                name: 'Séries', icon: 'tv',
+                cat1: { title: '📺 Binge-worthy', icon: 'play-circle' },
+                cat2: { title: '🔥 En ce moment', icon: 'broadcast' },
+                cat3: { title: '🕵️ Crime/Thriller', icon: 'search' },
+                cat4: { title: '🎭 Dramas', icon: 'mask' }
+            },
+            anime: {
+                name: 'Animés', icon: 'stars',
+                cat1: { title: '⚔️ Shonen', icon: 'lightning' },
+                cat2: { title: '💕 Romance', icon: 'heart' },
+                cat3: { title: '🎮 Isekai/Fantasy', icon: 'controller' },
+                cat4: { title: '🧠 Psychologique', icon: 'brain' }
+            }
+        };
+        const config = tileConfigs[type] || tileConfigs.movie;
 
         // Render content
         let html = '';
 
-        // Hero with featured movie
-        if (state.trending.movies.length > 0) {
-            const featured = state.trending.movies[0];
-            html += UI.createHero(featured);
+        // Mini Hero
+        if (state.categoryContent.hero) {
+            html += createMiniHero(state.categoryContent.hero, config);
         }
 
-        // Content rows
-        html += '<div class="content-rows">';
-        html += UI.createMediaRow('Films Populaires', 'film', state.trending.movies, 'movies-row');
-        html += UI.createMediaRow('Séries Tendances', 'tv', state.trending.series, 'series-row');
+        // Content sections as expandable tiles - 2 columns layout
+        html += '<div class="content-tiles px-4">';
+        html += '<div class="tiles-grid">';
+
+        // Row 1: Top Rated + Category 1
+        html += createExpandableTile('🏆 Meilleurs ' + config.name, 'trophy', state.categoryContent.top_rated, 'top-rated');
+        html += createExpandableTile(config.cat1.title, config.cat1.icon, state.categoryContent.cat1, 'cat1');
+
+        // Row 2: Classics + Category 2
+        html += createExpandableTile('🎬 ' + config.name + ' Cultes', 'film', state.categoryContent.classics, 'classics');
+        html += createExpandableTile(config.cat2.title, config.cat2.icon, state.categoryContent.cat2, 'cat2');
+
+        // Row 3: Hidden Gems + Category 3
+        html += createExpandableTile('💎 Pépites Cachées', 'gem', state.categoryContent.hidden_gems, 'hidden-gems');
+        html += createExpandableTile(config.cat3.title, config.cat3.icon, state.categoryContent.cat3, 'cat3');
+
+        // Row 4: Random + Category 4
+        html += createExpandableTile('🎲 Découvertes', 'shuffle', state.categoryContent.random, 'random');
+        html += createExpandableTile(config.cat4.title, config.cat4.icon, state.categoryContent.cat4, 'cat4');
+
+        html += '</div>';
         html += '</div>';
 
         mainContent.innerHTML = html;
 
-        // Attach click handlers to cards
+        // Attach click handlers
         attachCardClickHandlers();
 
     } catch (error) {
-        console.error('Error loading trending:', error);
+        console.error('Error loading category content:', error);
         mainContent.innerHTML = `
             <div class="empty-state">
                 <div class="empty-icon">😕</div>
                 <h3 class="empty-title">Erreur de chargement</h3>
                 <p class="empty-text">Impossible de charger le contenu. Réessayez plus tard.</p>
-                <button class="btn btn-primary" onclick="loadTrendingContent()">Réessayer</button>
+                <button class="btn btn-primary" onclick="loadCategoryContent()">Réessayer</button>
             </div>
         `;
     }
+}
+
+/**
+ * Create mini hero section
+ */
+function createMiniHero(media, catInfo) {
+    const backdropUrl = media.backdrop_url || media.poster_url;
+    const rating = media.rating ? media.rating.toFixed(1) : null;
+
+    return `
+        <div class="mini-hero mx-4">
+            <div class="mini-hero-backdrop" style="background-image: url('${backdropUrl}')"></div>
+            <div class="mini-hero-gradient"></div>
+            <div class="mini-hero-content">
+                <div class="mini-hero-info">
+                    <span class="mini-hero-badge">
+                        <i class="bi bi-${catInfo.icon}"></i>
+                        ${catInfo.name} recommandé
+                    </span>
+                    <h2 class="mini-hero-title">${media.title}</h2>
+                    <div class="mini-hero-meta">
+                        <span>${media.year || ''}</span>
+                        ${rating ? `<span class="mini-hero-rating">⭐ ${rating}</span>` : ''}
+                    </div>
+                    <div class="mini-hero-actions">
+                        <button class="btn btn-primary" onclick="openMediaModal(${JSON.stringify(media).replace(/"/g, '&quot;')})">
+                            <i class="bi bi-info-circle"></i> Détails
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Create expandable tile section
+ */
+function createExpandableTile(title, icon, items, id) {
+    if (!items || items.length === 0) return '';
+
+    const visibleItems = items.slice(0, 5);
+    const hasMore = items.length > 5;
+
+    // Store items for expansion
+    if (!window.tileData) window.tileData = {};
+    window.tileData[id] = items;
+
+    return `
+        <div class="expandable-tile" id="tile-${id}">
+            <div class="tile-header">
+                <h3 class="tile-title">
+                    <i class="bi bi-${icon}"></i>
+                    ${title}
+                    <span class="tile-count">${items.length}</span>
+                </h3>
+                ${hasMore ? `
+                    <button class="tile-toggle" onclick="toggleTile('${id}')">
+                        Tout voir <i class="bi bi-chevron-right"></i>
+                    </button>
+                ` : ''}
+            </div>
+            <div class="tile-content">
+                ${visibleItems.map(item => UI.createMediaCard(item)).join('')}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Toggle expandable tile
+ */
+function toggleTile(id) {
+    const tile = document.getElementById(`tile-${id}`);
+    if (!tile) return;
+
+    const isExpanded = tile.classList.toggle('expanded');
+    const content = tile.querySelector('.tile-content');
+    const items = window.tileData?.[id] || [];
+
+    if (isExpanded) {
+        // Show all items
+        content.innerHTML = items.map(item => UI.createMediaCard(item)).join('');
+    } else {
+        // Show only first 5
+        content.innerHTML = items.slice(0, 5).map(item => UI.createMediaCard(item)).join('');
+    }
+
+    // Re-attach click handlers
+    attachCardClickHandlers();
+}
+
+// Keep loadTrendingContent for backwards compatibility
+async function loadTrendingContent() {
+    return loadCategoryContent('movie');
 }
 
 /**
@@ -473,7 +767,7 @@ async function performSearch(query, type = 'all') {
             state.searchResults = Array.isArray(results) ? results : (results?.results || []);
 
             if (mainContent) {
-                mainContent.innerHTML = UI.createSearchResults(state.searchResults);
+                mainContent.innerHTML = UI.createSearchResults(state.searchResults, type);
                 attachCardClickHandlers();
             }
 
@@ -623,12 +917,29 @@ function attachCardClickHandlers() {
             // Find media in state
             let media = null;
 
-            // Check search results
+            // Check search results first
             media = state.searchResults.find(m =>
                 String(m.id) === mediaId && (m.source || 'tmdb') === source
             );
 
-            // Check trending
+            // Check category content (hero + all sections)
+            if (!media) {
+                const allCategoryItems = [
+                    state.categoryContent.hero,
+                    ...state.categoryContent.top_rated,
+                    ...state.categoryContent.classics,
+                    ...state.categoryContent.hidden_gems,
+                    ...state.categoryContent.random,
+                    ...state.categoryContent.cat1,
+                    ...state.categoryContent.cat2,
+                    ...state.categoryContent.cat3,
+                    ...state.categoryContent.cat4
+                ].filter(Boolean);
+
+                media = allCategoryItems.find(m => String(m.id) === mediaId);
+            }
+
+            // Check trending (fallback)
             if (!media) {
                 media = [...state.trending.movies, ...state.trending.series, ...state.trending.anime]
                     .find(m => String(m.id) === mediaId);
@@ -649,29 +960,34 @@ function setupEventListeners() {
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
-            performSearch(e.target.value, state.mediaType);
+            const query = e.target.value;
+            if (query.length >= 2) {
+                performSearch(query, state.currentCategory);
+            } else if (query.length === 0) {
+                // Return to category view
+                loadCategoryContent();
+            }
         });
 
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 searchInput.value = '';
-                performSearch('');
+                loadCategoryContent();
             }
         });
     }
 
-    // Filter tabs
-    document.querySelectorAll('.filter-tab').forEach(tab => {
-        tab.addEventListener('click', (e) => {
-            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-            e.target.classList.add('active');
+    // Category pills (homepage navigation between Films/Séries/Animés)
+    document.querySelectorAll('.category-pill').forEach(pill => {
+        pill.addEventListener('click', (e) => {
+            const category = e.currentTarget.dataset.category;
 
-            const type = e.target.dataset.type;
-            state.mediaType = type;
+            // Clear search when switching categories
+            if (searchInput) searchInput.value = '';
+            state.searchQuery = '';
 
-            if (state.searchQuery) {
-                performSearch(state.searchQuery, type);
-            }
+            // Load new category content
+            loadCategoryContent(category);
         });
     });
 
@@ -702,6 +1018,201 @@ function logout() {
     api.logout();
 }
 
+/**
+ * Open gallery modal with all items from a row
+ */
+function openGalleryModal(rowId) {
+    const data = window.rowData?.[rowId];
+    if (!data) return;
+
+    const modal = document.getElementById('galleryModal');
+    if (!modal) return;
+
+    // Update modal title and count
+    document.getElementById('galleryTitle').textContent = data.title;
+    document.getElementById('galleryCount').textContent = `${data.items.length} résultats`;
+
+    // Update title icon based on type
+    const titleIcon = modal.querySelector('.gallery-title i');
+    if (titleIcon) {
+        const iconMap = {
+            'movie': 'bi-film',
+            'tv': 'bi-tv',
+            'anime': 'bi-stars'
+        };
+        titleIcon.className = `bi ${iconMap[data.type] || 'bi-film'}`;
+    }
+
+    // Populate grid with cards
+    const grid = document.getElementById('galleryGrid');
+    grid.innerHTML = data.items.map(item => UI.createMediaCard(item)).join('');
+
+    // Attach click handlers to new cards
+    grid.querySelectorAll('.media-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const mediaId = card.dataset.mediaId;
+            const source = card.dataset.mediaSource;
+
+            // Find media in row data
+            const media = data.items.find(m =>
+                String(m.id) === mediaId && (m.source || 'tmdb') === source
+            );
+
+            if (media) {
+                // Close gallery modal first
+                const galleryInstance = bootstrap.Modal.getInstance(modal);
+                if (galleryInstance) galleryInstance.hide();
+
+                // Small delay before opening detail modal
+                setTimeout(() => openMediaModal(media), 300);
+            }
+        });
+    });
+
+    // Show modal
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+}
+
+/**
+ * Setup touch scrolling for media rows (mobile)
+ */
+function setupTouchScrolling() {
+    document.querySelectorAll('.media-row').forEach(row => {
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+
+        row.addEventListener('mousedown', (e) => {
+            isDown = true;
+            row.classList.add('active');
+            startX = e.pageX - row.offsetLeft;
+            scrollLeft = row.scrollLeft;
+        });
+
+        row.addEventListener('mouseleave', () => {
+            isDown = false;
+            row.classList.remove('active');
+        });
+
+        row.addEventListener('mouseup', () => {
+            isDown = false;
+            row.classList.remove('active');
+        });
+
+        row.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - row.offsetLeft;
+            const walk = (x - startX) * 2;
+            row.scrollLeft = scrollLeft - walk;
+        });
+
+        // Touch events for mobile
+        row.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].pageX - row.offsetLeft;
+            scrollLeft = row.scrollLeft;
+        }, { passive: true });
+
+        row.addEventListener('touchmove', (e) => {
+            const x = e.touches[0].pageX - row.offsetLeft;
+            const walk = (x - startX) * 2;
+            row.scrollLeft = scrollLeft - walk;
+        }, { passive: true });
+    });
+
+    // Update scroll indicators
+    updateScrollIndicators();
+}
+
+/**
+ * Update scroll indicators for mobile
+ */
+function updateScrollIndicators() {
+    document.querySelectorAll('.media-section').forEach(section => {
+        const row = section.querySelector('.media-row');
+        const indicatorsContainer = section.querySelector('.scroll-indicators');
+
+        if (!row || !indicatorsContainer) return;
+
+        // Calculate number of pages
+        const cardWidth = 160; // Average card width
+        const visibleCards = Math.floor(row.clientWidth / cardWidth);
+        const totalCards = row.querySelectorAll('.media-card').length;
+        const pages = Math.ceil(totalCards / visibleCards);
+
+        // Don't show indicators if only one page
+        if (pages <= 1) {
+            indicatorsContainer.innerHTML = '';
+            return;
+        }
+
+        // Create dots
+        indicatorsContainer.innerHTML = Array(Math.min(pages, 5))
+            .fill(0)
+            .map((_, i) => `<div class="scroll-dot ${i === 0 ? 'active' : ''}"></div>`)
+            .join('');
+
+        // Update active dot on scroll
+        let scrollTimeout;
+        row.addEventListener('scroll', () => {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                const scrollPercent = row.scrollLeft / (row.scrollWidth - row.clientWidth);
+                const activeDot = Math.min(
+                    Math.floor(scrollPercent * pages),
+                    pages - 1
+                );
+                indicatorsContainer.querySelectorAll('.scroll-dot').forEach((dot, i) => {
+                    dot.classList.toggle('active', i === activeDot);
+                });
+            }, 50);
+        });
+
+        // Click on dot to scroll
+        indicatorsContainer.querySelectorAll('.scroll-dot').forEach((dot, i) => {
+            dot.addEventListener('click', () => {
+                const targetScroll = (row.scrollWidth - row.clientWidth) * (i / (pages - 1));
+                row.scrollTo({ left: targetScroll, behavior: 'smooth' });
+            });
+        });
+    });
+}
+
+/**
+ * Create media card with type badge for search results
+ */
+function createMediaCardWithTypeBadge(media) {
+    const card = UI.createMediaCard(media);
+    // Add type badge to the card
+    const typeClass = media.media_type || 'movie';
+    const typeBadge = `<span class="media-type-badge ${typeClass}">${UI.getMediaTypeLabel(media.media_type)}</span>`;
+
+    // Insert badge after poster opening tag
+    return card.replace('<div class="media-poster">', `<div class="media-poster">${typeBadge}`);
+}
+
+/**
+ * Expand a search section to show all results in gallery modal
+ */
+function expandSearchSection(type) {
+    const data = window.searchSections?.[type];
+    if (!data) return;
+
+    // Create temporary row data for gallery modal
+    if (!window.rowData) window.rowData = {};
+    const tempId = `search-${type}`;
+    window.rowData[tempId] = {
+        title: data.title,
+        icon: data.icon,
+        items: data.items,
+        type: type
+    };
+
+    // Open gallery modal with this data
+    openGalleryModal(tempId);
+}
+
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', initApp);
 
@@ -710,3 +1221,7 @@ window.scrollRow = scrollRow;
 window.openMediaModal = openMediaModal;
 window.requestMedia = requestMedia;
 window.logout = logout;
+window.openGalleryModal = openGalleryModal;
+window.expandSearchSection = expandSearchSection;
+window.toggleTile = toggleTile;
+window.loadCategoryContent = loadCategoryContent;
