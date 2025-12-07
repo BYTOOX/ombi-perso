@@ -495,6 +495,17 @@
                 </button>
             </li>
             <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#renameTab">
+                    <i class="bi bi-file-earmark-text me-2"></i>Renommage
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#transfersTab">
+                    <i class="bi bi-arrow-left-right me-2"></i>Transferts
+                    <span class="badge bg-warning ms-1" id="transfersInProgressBadge" style="display:none;">0</span>
+                </button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link" data-bs-toggle="tab" data-bs-target="#logsTab">
                     <i class="bi bi-terminal me-2"></i>Logs
                     <span class="badge bg-danger ms-1" id="logsErrorBadge" style="display:none;">0</span>
@@ -806,6 +817,550 @@
                             Charger plus...
                         </button>
                         <div class="text-muted small mt-2" id="logsPagination"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rename Tab -->
+            <div class="tab-pane fade" id="renameTab">
+                <!-- Sub-tabs for media types -->
+                <ul class="nav nav-pills mb-4" id="renameSubTabs">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#renameMoviesTab">
+                            <i class="bi bi-film me-1"></i>Films
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#renameSeriesTab">
+                            <i class="bi bi-tv me-1"></i>Séries
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#renameAnimeTab">
+                            <i class="bi bi-stars me-1"></i>Animés
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Films Tab -->
+                    <div class="tab-pane fade show active" id="renameMoviesTab">
+                        <div class="row g-4">
+                            <div class="col-lg-6">
+                                <div class="admin-card">
+                                    <div class="admin-card-header">
+                                        <h3 class="admin-card-title"><i class="bi bi-film"></i>Configuration Films</h3>
+                                    </div>
+                                    <div class="p-3">
+                                        <div class="mb-3">
+                                            <label class="form-label">Priorité audio</label>
+                                            <div class="p-2 rounded" style="background: rgba(0,0,0,0.2);">
+                                                <span class="badge bg-success">1. Multi (avec FR)</span>
+                                                <i class="bi bi-arrow-right mx-2 text-muted"></i>
+                                                <span class="badge bg-primary">2. VF</span>
+                                                <i class="bi bi-arrow-right mx-2 text-muted"></i>
+                                                <span class="badge bg-secondary">3. VOSTFR</span>
+                                            </div>
+                                            <div class="form-text">Ordre de préférence des torrents</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Sous-titres</label>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="movieSubFr" checked
+                                                    disabled>
+                                                <label class="form-check-label" for="movieSubFr">Français
+                                                    uniquement</label>
+                                            </div>
+                                        </div>
+                                        <hr>
+                                        <div class="mb-3">
+                                            <label class="form-label">Template de nommage</label>
+                                            <input type="text" class="form-control font-monospace"
+                                                id="renameMovieFormat" value="{title} ({year})">
+                                            <div class="form-text">Variables: {title}, {year}</div>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="movieIncludeTmdb">
+                                            <label class="form-check-label" for="movieIncludeTmdb">
+                                                Inclure ID TMDB <code>{tmdb-xxx}</code>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="admin-card">
+                                    <div class="admin-card-header">
+                                        <h3 class="admin-card-title"><i class="bi bi-bug"></i>Tester (Film)</h3>
+                                    </div>
+                                    <div class="p-3">
+                                        <div class="mb-3">
+                                            <input type="text" class="form-control font-monospace"
+                                                id="testMovieFilename"
+                                                placeholder="Avatar.2009.1080p.BluRay.x264-SPARKS.mkv">
+                                        </div>
+                                        <button class="btn btn-primary-custom w-100" onclick="testRename('movie')">
+                                            <i class="bi bi-play me-1"></i>Tester le renommage
+                                        </button>
+                                        <div id="movieTestResult" class="mt-3" style="display:none;">
+                                            <div class="p-3 rounded" style="background: rgba(0,0,0,0.3);">
+                                                <small class="text-muted">Résultat:</small>
+                                                <div class="font-monospace text-success" id="movieResultRenamed"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Séries Tab -->
+                    <div class="tab-pane fade" id="renameSeriesTab">
+                        <div class="row g-4">
+                            <div class="col-lg-6">
+                                <div class="admin-card">
+                                    <div class="admin-card-header">
+                                        <h3 class="admin-card-title"><i class="bi bi-tv"></i>Configuration Séries</h3>
+                                    </div>
+                                    <div class="p-3">
+                                        <div class="mb-3">
+                                            <label class="form-label">Priorité audio</label>
+                                            <div class="p-2 rounded" style="background: rgba(0,0,0,0.2);">
+                                                <span class="badge bg-success">1. Multi (avec FR)</span>
+                                                <i class="bi bi-arrow-right mx-2 text-muted"></i>
+                                                <span class="badge bg-primary">2. VF</span>
+                                                <i class="bi bi-arrow-right mx-2 text-muted"></i>
+                                                <span class="badge bg-secondary">3. VOSTFR</span>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Sous-titres</label>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" checked disabled>
+                                                <label class="form-check-label">Français uniquement</label>
+                                            </div>
+                                        </div>
+                                        <hr>
+                                        <div class="mb-3">
+                                            <label class="form-label">Template de nommage</label>
+                                            <textarea class="form-control font-monospace" id="renameSeriesFormat"
+                                                rows="2">{title} ({year})/Season {season:02d}/{title} ({year}) - S{season:02d}E{episode:02d}</textarea>
+                                            <div class="form-text">Variables: {title}, {year}, {season}, {episode}</div>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="seriesIncludeTvdb">
+                                            <label class="form-check-label" for="seriesIncludeTvdb">
+                                                Inclure ID TVDB <code>{tvdb-xxx}</code>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="admin-card">
+                                    <div class="admin-card-header">
+                                        <h3 class="admin-card-title"><i class="bi bi-bug"></i>Tester (Série)</h3>
+                                    </div>
+                                    <div class="p-3">
+                                        <div class="mb-3">
+                                            <input type="text" class="form-control font-monospace"
+                                                id="testSeriesFilename"
+                                                placeholder="Breaking.Bad.S01E01.1080p.BluRay.mkv">
+                                        </div>
+                                        <button class="btn btn-primary-custom w-100" onclick="testRename('series')">
+                                            <i class="bi bi-play me-1"></i>Tester le renommage
+                                        </button>
+                                        <div id="seriesTestResult" class="mt-3" style="display:none;">
+                                            <div class="p-3 rounded" style="background: rgba(0,0,0,0.3);">
+                                                <small class="text-muted">Résultat:</small>
+                                                <div class="font-monospace text-success" id="seriesResultRenamed"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Animés Tab -->
+                    <div class="tab-pane fade" id="renameAnimeTab">
+                        <div class="row g-4">
+                            <div class="col-lg-6">
+                                <div class="admin-card">
+                                    <div class="admin-card-header">
+                                        <h3 class="admin-card-title"><i class="bi bi-stars"></i>Configuration Animés
+                                        </h3>
+                                    </div>
+                                    <div class="p-3">
+                                        <div class="mb-3">
+                                            <label class="form-label">Priorité audio</label>
+                                            <div class="p-2 rounded" style="background: rgba(0,0,0,0.2);">
+                                                <span class="badge bg-success">1. Multi (avec FR)</span>
+                                                <i class="bi bi-arrow-right mx-2 text-muted"></i>
+                                                <span class="badge bg-primary">2. VF</span>
+                                                <i class="bi bi-arrow-right mx-2 text-muted"></i>
+                                                <span class="badge bg-secondary">3. VOSTFR</span>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Sous-titres</label>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" checked disabled>
+                                                <label class="form-check-label">Français uniquement</label>
+                                            </div>
+                                        </div>
+                                        <hr>
+                                        <div class="mb-3">
+                                            <label class="form-label">Préférence titre anime</label>
+                                            <select class="form-select" id="renameAnimeTitlePref">
+                                                <option value="english">Titre anglais (ex: Attack on Titan)</option>
+                                                <option value="romaji">Romanisé (ex: Shingeki no Kyojin)</option>
+                                                <option value="japanese">Japonais</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Template de nommage</label>
+                                            <textarea class="form-control font-monospace" id="renameAnimeFormat"
+                                                rows="2">{title} ({year})/Season {season:02d}/{title} ({year}) - S{season:02d}E{episode:02d}</textarea>
+                                            <div class="form-text">Variables: {title}, {year}, {season}, {episode}</div>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="animeIncludeTvdb">
+                                            <label class="form-check-label" for="animeIncludeTvdb">
+                                                Inclure ID TVDB <code>{tvdb-xxx}</code>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="admin-card">
+                                    <div class="admin-card-header">
+                                        <h3 class="admin-card-title"><i class="bi bi-bug"></i>Tester (Animé)</h3>
+                                    </div>
+                                    <div class="p-3">
+                                        <div class="mb-3">
+                                            <input type="text" class="form-control font-monospace"
+                                                id="testAnimeFilename"
+                                                placeholder="[SubsPlease] Jujutsu Kaisen - 45 (1080p).mkv">
+                                        </div>
+                                        <button class="btn btn-primary-custom w-100" onclick="testRename('anime')">
+                                            <i class="bi bi-play me-1"></i>Tester le renommage
+                                        </button>
+                                        <div id="animeTestResult" class="mt-3" style="display:none;">
+                                            <div class="p-3 rounded" style="background: rgba(0,0,0,0.3);">
+                                                <small class="text-muted">Résultat:</small>
+                                                <div class="font-monospace text-success" id="animeResultRenamed"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Variables Reference Card -->
+                <div class="row g-4 mt-2">
+                    <div class="col-12">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-code-square"></i>Variables disponibles</h3>
+                            </div>
+                            <div class="p-3">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6 class="text-primary mb-2">Variables communes</h6>
+                                        <table class="table table-sm table-dark-custom mb-3">
+                                            <thead>
+                                                <tr>
+                                                    <th>Variable</th>
+                                                    <th>Description</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td><code>{title}</code></td>
+                                                    <td>Titre du média</td>
+                                                </tr>
+                                                <tr>
+                                                    <td><code>{year}</code></td>
+                                                    <td>Année de sortie</td>
+                                                </tr>
+                                                <tr>
+                                                    <td><code>{quality}</code></td>
+                                                    <td>Qualité (1080p, 720p...)</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+
+                                        <h6 class="text-info mb-2">Variables séries/animés</h6>
+                                        <table class="table table-sm table-dark-custom mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Variable</th>
+                                                    <th>Description</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td><code>{season}</code></td>
+                                                    <td>Numéro de saison</td>
+                                                </tr>
+                                                <tr>
+                                                    <td><code>{season:02d}</code></td>
+                                                    <td>Saison sur 2 chiffres (01, 02...)</td>
+                                                </tr>
+                                                <tr>
+                                                    <td><code>{episode}</code></td>
+                                                    <td>Numéro d'épisode</td>
+                                                </tr>
+                                                <tr>
+                                                    <td><code>{episode:02d}</code></td>
+                                                    <td>Épisode sur 2 chiffres</td>
+                                                </tr>
+                                                <tr>
+                                                    <td><code>{episode_title}</code></td>
+                                                    <td>Titre de l'épisode</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-success mb-2">Exemples Plex</h6>
+                                        <div class="p-2 rounded mb-2" style="background: rgba(0,0,0,0.3);">
+                                            <small class="text-muted d-block">Film:</small>
+                                            <code class="text-warning">{title} ({year})</code>
+                                            <div class="text-success small">→ Avatar (2009)/Avatar (2009).mkv</div>
+                                        </div>
+                                        <div class="p-2 rounded mb-2" style="background: rgba(0,0,0,0.3);">
+                                            <small class="text-muted d-block">Série:</small>
+                                            <code
+                                                class="text-warning">{title} ({year})/Season {season:02d}/{title} - S{season:02d}E{episode:02d}</code>
+                                            <div class="text-success small">→ Breaking Bad (2008)/Season 01/Breaking Bad
+                                                - S01E01.mkv</div>
+                                        </div>
+                                        <div class="p-2 rounded mb-2" style="background: rgba(0,0,0,0.3);">
+                                            <small class="text-muted d-block">Animé:</small>
+                                            <code
+                                                class="text-warning">{title} ({year})/Season {season:02d}/{title} - S{season:02d}E{episode:02d}</code>
+                                            <div class="text-success small">→ Attack on Titan (2013)/Season 01/Attack on
+                                                Titan - S01E01.mkv</div>
+                                        </div>
+                                        <div class="p-2 rounded" style="background: rgba(0,0,0,0.3);">
+                                            <small class="text-muted d-block">Avec titre épisode:</small>
+                                            <code
+                                                class="text-warning">{title} - S{season:02d}E{episode:02d} - {episode_title}</code>
+                                            <div class="text-success small">→ Attack on Titan - S01E01 - To You, in 2000
+                                                Years.mkv</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Global Settings & Mappings (shared across all types) -->
+                <div class="row g-4 mt-2">
+                    <div class="col-lg-4">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-gear"></i>Options Globales</h3>
+                            </div>
+                            <div class="p-3">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="renameSpecialChars">
+                                    <label class="form-check-label" for="renameSpecialChars">
+                                        Remplacer caractères spéciaux (é→e)
+                                    </label>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="renameAiFallback" checked>
+                                    <label class="form-check-label" for="renameAiFallback">
+                                        Utiliser l'IA en fallback
+                                    </label>
+                                </div>
+                                <button class="btn btn-primary-custom w-100" onclick="saveRenameSettings()">
+                                    <i class="bi bi-check-lg me-2"></i>Enregistrer tout
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-8">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-link-45deg"></i>Mappings Manuels</h3>
+                                <button class="btn btn-primary-custom btn-sm" onclick="showAddMappingForm()">
+                                    <i class="bi bi-plus-lg me-1"></i>Ajouter
+                                </button>
+                            </div>
+                            <div id="addMappingForm" class="p-3 border-bottom"
+                                style="display:none; background: rgba(0,0,0,0.2);">
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control" id="mappingPattern"
+                                            placeholder="Pattern: *One.Piece*">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control" id="mappingPlexTitle"
+                                            placeholder="Titre Plex: One Piece">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <select class="form-select" id="mappingMediaType">
+                                            <option value="anime">Animé</option>
+                                            <option value="series">Série</option>
+                                            <option value="movie">Film</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-success w-100" onclick="addTitleMapping()">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="table-responsive" style="max-height: 200px;">
+                                <table class="table table-dark-custom mb-0 table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Pattern</th>
+                                            <th>Titre Plex</th>
+                                            <th>Type</th>
+                                            <th style="width:60px;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="mappingsBody">
+                                        <tr>
+                                            <td colspan="4" class="text-center py-3 text-muted">
+                                                Aucun mapping défini
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transfers Tab -->
+            <div class="tab-pane fade" id="transfersTab">
+                <!-- Stats Cards -->
+                <div class="row g-4 mb-4">
+                    <div class="col-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon warning"><i class="bi bi-arrow-repeat"></i></div>
+                            <div class="stat-info">
+                                <h3 id="transfersInProgress">0</h3>
+                                <p>En cours</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon info"><i class="bi bi-hourglass-split"></i></div>
+                            <div class="stat-info">
+                                <h3 id="transfersPending">0</h3>
+                                <p>En attente</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon success"><i class="bi bi-check-circle"></i></div>
+                            <div class="stat-info">
+                                <h3 id="transfersCompleted">0</h3>
+                                <p>Réussis (24h)</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon primary"><i class="bi bi-hdd"></i></div>
+                            <div class="stat-info">
+                                <h3 id="transfersGB">0 Go</h3>
+                                <p>Transféré (7j)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <!-- Active Transfers -->
+                    <div class="col-lg-8">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-arrow-left-right"></i>Transferts actifs
+                                </h3>
+                                <button class="btn btn-primary-custom btn-sm" onclick="showForceTransferModal()">
+                                    <i class="bi bi-plus-lg me-1"></i>Forcer
+                                </button>
+                            </div>
+                            <div id="activeTransfersList" class="p-3">
+                                <div class="text-center py-5">
+                                    <i class="bi bi-inbox text-success" style="font-size: 3rem; opacity: 0.6;"></i>
+                                    <p class="text-muted mt-3 mb-0">Aucun transfert en cours</p>
+                                    <small class="text-muted">Les transferts apparaîtront ici
+                                        automatiquement</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- History -->
+                        <div class="admin-card mt-4">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-clock-history"></i>Historique récent
+                                </h3>
+                                <select class="form-select form-select-sm" id="transferHistoryFilter"
+                                    style="width: auto;" onchange="loadTransferHistory()">
+                                    <option value="">Tous</option>
+                                    <option value="movie">Films</option>
+                                    <option value="series">Séries</option>
+                                    <option value="anime">Animés</option>
+                                </select>
+                            </div>
+                            <div class="table-responsive" style="max-height: 300px;">
+                                <table class="table table-dark-custom mb-0 table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Statut</th>
+                                            <th>Média</th>
+                                            <th>Destination</th>
+                                            <th>Date</th>
+                                            <th style="width:80px;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="transferHistoryBody">
+                                        <tr>
+                                            <td colspan="5" class="text-center py-4">
+                                                <i class="bi bi-clock text-muted" style="font-size: 1.5rem;"></i>
+                                                <p class="text-muted mb-0 mt-2">Aucun transfert récent</p>
+                                                <small class="text-muted">L'historique des 24 dernières heures
+                                                    s'affichera ici</small>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Activity Log -->
+                    <div class="col-lg-4">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-chat-square-text"></i>Activité</h3>
+                                <span class="badge bg-success" id="wsStatus">Connecté</span>
+                            </div>
+                            <div id="transferActivityLog" class="p-3" style="max-height: 500px; overflow-y: auto;">
+                                <div class="text-center py-4">
+                                    <i class="bi bi-broadcast text-info" style="font-size: 2rem; opacity: 0.6;"></i>
+                                    <p class="text-muted mt-2 mb-0 small">Surveillance active</p>
+                                    <small class="text-muted">Les événements s'afficheront en temps réel</small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1801,6 +2356,587 @@
             }
             bootstrap.Modal.getInstance(document.getElementById('fileBrowserModal')).hide();
         }
+
+        // =========================================================================
+        // RENAME SETTINGS
+        // =========================================================================
+
+        async function loadRenameSettings() {
+            const token = localStorage.getItem('access_token');
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/settings/rename`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const settings = await response.json();
+
+                    // Populate form fields
+                    document.getElementById('renameMovieFormat').value = settings.movie_format || '{title} ({year})';
+                    document.getElementById('renameSeriesFormat').value = settings.series_format || '{title} ({year})/Season {season:02d}/{title} ({year}) - S{season:02d}E{episode:02d}';
+                    document.getElementById('renameAnimeFormat').value = settings.anime_format || '{title} ({year})/Season {season:02d}/{title} ({year}) - S{season:02d}E{episode:02d}';
+                    document.getElementById('renameAnimeTitlePref').value = settings.anime_title_preference || 'english';
+
+                    // Checkboxes
+                    const movieTmdb = document.getElementById('movieIncludeTmdb');
+                    if (movieTmdb) movieTmdb.checked = settings.include_tmdb_id || false;
+
+                    const seriesTvdb = document.getElementById('seriesIncludeTvdb');
+                    if (seriesTvdb) seriesTvdb.checked = settings.include_tvdb_id || false;
+
+                    const animeTvdb = document.getElementById('animeIncludeTvdb');
+                    if (animeTvdb) animeTvdb.checked = settings.include_tvdb_id || false;
+
+                    document.getElementById('renameSpecialChars').checked = settings.replace_special_chars || false;
+                    document.getElementById('renameAiFallback').checked = settings.use_ai_fallback !== false;
+                }
+            } catch (e) {
+                console.error('Error loading rename settings:', e);
+            }
+        }
+
+        async function saveRenameSettings() {
+            const token = localStorage.getItem('access_token');
+
+            const settings = {
+                // Audio preference is fixed: MULTI -> VF -> VOSTFR
+                preferred_language: 'multi_vf_vostfr',
+                // Subtitles: French only (fixed)
+                subtitle_language: 'french',
+                // Templates per type
+                movie_format: document.getElementById('renameMovieFormat').value,
+                series_format: document.getElementById('renameSeriesFormat').value,
+                anime_format: document.getElementById('renameAnimeFormat').value,
+                // Anime specific
+                anime_title_preference: document.getElementById('renameAnimeTitlePref').value,
+                // IDs
+                include_tmdb_id: document.getElementById('movieIncludeTmdb')?.checked || false,
+                include_tvdb_id: document.getElementById('seriesIncludeTvdb')?.checked || document.getElementById('animeIncludeTvdb')?.checked || false,
+                // Global options
+                replace_special_chars: document.getElementById('renameSpecialChars').checked,
+                use_ai_fallback: document.getElementById('renameAiFallback').checked
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/settings/rename`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+
+                if (response.ok) {
+                    showToast('Paramètres de renommage enregistrés', 'success');
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Erreur', 'danger');
+                }
+            } catch (e) {
+                console.error('Error saving rename settings:', e);
+                showToast('Erreur de connexion', 'danger');
+            }
+        }
+
+        async function testRename(mediaType) {
+            const token = localStorage.getItem('access_token');
+
+            // Get the correct input field based on media type
+            let filenameInput, resultDiv, resultEl;
+            if (mediaType === 'movie') {
+                filenameInput = document.getElementById('testMovieFilename');
+                resultDiv = document.getElementById('movieTestResult');
+                resultEl = document.getElementById('movieResultRenamed');
+            } else if (mediaType === 'series') {
+                filenameInput = document.getElementById('testSeriesFilename');
+                resultDiv = document.getElementById('seriesTestResult');
+                resultEl = document.getElementById('seriesResultRenamed');
+            } else {
+                filenameInput = document.getElementById('testAnimeFilename');
+                resultDiv = document.getElementById('animeTestResult');
+                resultEl = document.getElementById('animeResultRenamed');
+            }
+
+            const filename = filenameInput?.value;
+
+            if (!filename) {
+                showToast('Entrez un nom de fichier', 'warning');
+                return;
+            }
+
+            resultDiv.style.display = 'none';
+
+            try {
+                const params = new URLSearchParams({
+                    filename: filename,
+                    media_type: mediaType
+                });
+
+                const response = await fetch(`${API_BASE}/admin/settings/rename/preview?${params}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    resultEl.textContent = result.folder_structure;
+                    resultDiv.style.display = 'block';
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Erreur de test', 'danger');
+                }
+            } catch (e) {
+                console.error('Error testing rename:', e);
+                showToast('Erreur de connexion', 'danger');
+            }
+        }
+
+        // =========================================================================
+        // TITLE MAPPINGS
+        // =========================================================================
+
+        async function loadTitleMappings() {
+            const token = localStorage.getItem('access_token');
+            const tbody = document.getElementById('mappingsBody');
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/settings/rename/mappings`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const mappings = data.mappings || [];
+
+                    if (mappings.length === 0) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    Aucun mapping défini
+                                </td>
+                            </tr>
+                        `;
+                        return;
+                    }
+
+                    tbody.innerHTML = mappings.map(m => `
+                        <tr>
+                            <td><code>${m.pattern}</code></td>
+                            <td>${m.plex_title}</td>
+                            <td><span class="badge bg-secondary">${m.media_type}</span></td>
+                            <td>
+                                <button class="btn btn-outline-danger btn-sm" onclick="deleteTitleMapping(${m.id})">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('Error loading mappings:', e);
+            }
+        }
+
+        function showAddMappingForm() {
+            const form = document.getElementById('addMappingForm');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function addTitleMapping() {
+            const token = localStorage.getItem('access_token');
+            const pattern = document.getElementById('mappingPattern').value;
+            const plexTitle = document.getElementById('mappingPlexTitle').value;
+            const mediaType = document.getElementById('mappingMediaType').value;
+
+            if (!pattern || !plexTitle) {
+                showToast('Remplissez tous les champs', 'warning');
+                return;
+            }
+
+            try {
+                const params = new URLSearchParams({
+                    pattern: pattern,
+                    plex_title: plexTitle,
+                    media_type: mediaType
+                });
+
+                const response = await fetch(`${API_BASE}/admin/settings/rename/mappings?${params}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    showToast('Mapping ajouté', 'success');
+                    document.getElementById('mappingPattern').value = '';
+                    document.getElementById('mappingPlexTitle').value = '';
+                    document.getElementById('addMappingForm').style.display = 'none';
+                    loadTitleMappings();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Erreur', 'danger');
+                }
+            } catch (e) {
+                console.error('Error adding mapping:', e);
+                showToast('Erreur de connexion', 'danger');
+            }
+        }
+
+        async function deleteTitleMapping(id) {
+            if (!confirm('Supprimer ce mapping ?')) return;
+
+            const token = localStorage.getItem('access_token');
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/settings/rename/mappings/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    showToast('Mapping supprimé', 'success');
+                    loadTitleMappings();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Erreur', 'danger');
+                }
+            } catch (e) {
+                console.error('Error deleting mapping:', e);
+                showToast('Erreur de connexion', 'danger');
+            }
+        }
+
+        // Load rename settings when tab is shown
+        document.querySelector('[data-bs-target="#renameTab"]')?.addEventListener('shown.bs.tab', () => {
+            loadRenameSettings();
+            loadTitleMappings();
+        });
+
+        // =========================================================================
+        // TRANSFERS MANAGEMENT
+        // =========================================================================
+
+        let transfersWs = null;
+
+        function initTransfersWebSocket() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/api/v1/transfers/ws`;
+
+            try {
+                transfersWs = new WebSocket(wsUrl);
+
+                transfersWs.onopen = () => {
+                    document.getElementById('wsStatus').className = 'badge bg-success';
+                    document.getElementById('wsStatus').textContent = 'Connecté';
+                    addActivityLog('✨ Connexion temps réel établie');
+                };
+
+                transfersWs.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    handleTransferUpdate(data);
+                };
+
+                transfersWs.onclose = () => {
+                    document.getElementById('wsStatus').className = 'badge bg-danger';
+                    document.getElementById('wsStatus').textContent = 'Déconnecté';
+                    // Try to reconnect after 5 seconds
+                    setTimeout(initTransfersWebSocket, 5000);
+                };
+
+                transfersWs.onerror = () => {
+                    document.getElementById('wsStatus').className = 'badge bg-warning';
+                    document.getElementById('wsStatus').textContent = 'Erreur';
+                };
+
+                // Ping every 30s to keep connection alive
+                setInterval(() => {
+                    if (transfersWs && transfersWs.readyState === WebSocket.OPEN) {
+                        transfersWs.send('ping');
+                    }
+                }, 30000);
+            } catch (e) {
+                console.error('WebSocket error:', e);
+            }
+        }
+
+        function handleTransferUpdate(data) {
+            if (data.type === 'transfer_progress' || data.type === 'transfer_update') {
+                updateActiveTransfer(data.transfer);
+                addActivityLog(formatTransferLog(data.transfer));
+            } else if (data.type === 'transfer_new') {
+                loadActiveTransfers();
+                addActivityLog(`📦 Nouveau transfert: ${data.transfer.media_title || data.transfer.original_filename}`);
+            } else if (data.type === 'transfer_cancelled') {
+                loadActiveTransfers();
+                addActivityLog('🚫 Transfert annulé');
+            }
+
+            // Refresh stats
+            loadTransferStats();
+        }
+
+        function formatTransferLog(transfer) {
+            const emoji = {
+                'pending': '⏳',
+                'in_progress': '📦',
+                'completed': '✅',
+                'failed': '❌',
+                'cancelled': '🚫'
+            }[transfer.status] || '❓';
+
+            const title = transfer.media_title || transfer.original_filename;
+
+            if (transfer.status === 'completed') {
+                return `${emoji} "${title}" déplacé avec succès`;
+            } else if (transfer.status === 'failed') {
+                return `${emoji} "${title}" a échoué`;
+            } else if (transfer.status === 'in_progress') {
+                return `${emoji} "${title}" en cours (${Math.round(transfer.progress)}%)`;
+            }
+            return `${emoji} "${title}"`;
+        }
+
+        function addActivityLog(message) {
+            const log = document.getElementById('transferActivityLog');
+            const entry = document.createElement('div');
+            entry.className = 'transfer-log-entry mb-2 p-2 rounded';
+            entry.style.background = 'rgba(0,0,0,0.2)';
+
+            const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            entry.innerHTML = `
+                <div class="d-flex justify-content-between">
+                    <span>${message}</span>
+                    <small class="text-muted">${time}</small>
+                </div>
+            `;
+
+            log.insertBefore(entry, log.firstChild);
+
+            // Keep only last 50 entries
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        async function loadTransferStats() {
+            const token = localStorage.getItem('access_token');
+
+            try {
+                const response = await fetch(`${API_BASE}/transfers/stats`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('transfersInProgress').textContent = stats.in_progress;
+                    document.getElementById('transfersPending').textContent = stats.pending;
+                    document.getElementById('transfersCompleted').textContent = stats.today.completed;
+                    document.getElementById('transfersGB').textContent = `${stats.week_gb_transferred} Go`;
+
+                    // Update badge
+                    const badge = document.getElementById('transfersInProgressBadge');
+                    if (stats.in_progress > 0) {
+                        badge.textContent = stats.in_progress;
+                        badge.style.display = 'inline';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading transfer stats:', e);
+            }
+        }
+
+        async function loadActiveTransfers() {
+            const token = localStorage.getItem('access_token');
+
+            try {
+                const response = await fetch(`${API_BASE}/transfers/active`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const container = document.getElementById('activeTransfersList');
+
+                    if (data.active.length === 0) {
+                        container.innerHTML = `
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-check-circle fs-1 mb-2 d-block"></i>
+                                Aucun transfert en cours
+                            </div>
+                        `;
+                    } else {
+                        container.innerHTML = data.active.map(t => renderActiveTransfer(t)).join('');
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading active transfers:', e);
+            }
+        }
+
+        function renderActiveTransfer(transfer) {
+            const statusClass = transfer.status === 'in_progress' ? 'progress-bar-striped progress-bar-animated' : '';
+            const title = transfer.media_title || transfer.original_filename;
+
+            return `
+                <div class="p-3 mb-2 rounded" style="background: rgba(0,0,0,0.3);" id="transfer-${transfer.id}">
+                    <div class="d-flex justify-content-between mb-2">
+                        <strong>${title}</strong>
+                        <span class="badge bg-${transfer.status === 'in_progress' ? 'warning' : 'secondary'}">${transfer.status}</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 8px;">
+                        <div class="progress-bar bg-primary ${statusClass}" style="width: ${transfer.progress}%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <small class="text-muted">→ ${transfer.media_type}</small>
+                        <small>${Math.round(transfer.progress)}%</small>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateActiveTransfer(transfer) {
+            const el = document.getElementById(`transfer-${transfer.id}`);
+            if (el) {
+                el.outerHTML = renderActiveTransfer(transfer);
+            } else {
+                loadActiveTransfers();
+            }
+        }
+
+        async function loadTransferHistory() {
+            const token = localStorage.getItem('access_token');
+            const filter = document.getElementById('transferHistoryFilter')?.value || '';
+
+            try {
+                let url = `${API_BASE}/transfers?hours=24&limit=20`;
+                if (filter) url += `&media_type=${filter}`;
+
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const tbody = document.getElementById('transferHistoryBody');
+
+                    if (data.transfers.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted">Aucun transfert récent</td></tr>`;
+                    } else {
+                        tbody.innerHTML = data.transfers.map(t => {
+                            const statusIcon = {
+                                'completed': '<i class="bi bi-check-circle text-success"></i>',
+                                'failed': '<i class="bi bi-x-circle text-danger"></i>',
+                                'pending': '<i class="bi bi-hourglass-split text-warning"></i>',
+                                'in_progress': '<i class="bi bi-arrow-repeat text-info"></i>',
+                                'cancelled': '<i class="bi bi-slash-circle text-secondary"></i>'
+                            }[t.status] || '';
+
+                            const date = t.completed_at || t.created_at;
+                            const timeAgo = date ? formatTimeAgo(new Date(date)) : '-';
+                            const title = t.media_title || t.original_filename;
+                            const canRetry = t.status === 'failed';
+
+                            return `
+                                <tr>
+                                    <td>${statusIcon}</td>
+                                    <td>${title.substring(0, 30)}${title.length > 30 ? '...' : ''}</td>
+                                    <td>${t.media_type}</td>
+                                    <td><small>${timeAgo}</small></td>
+                                    <td>
+                                        ${canRetry ? `<button class="btn btn-sm btn-outline-warning" onclick="retryTransfer(${t.id})"><i class="bi bi-arrow-clockwise"></i></button>` : ''}
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading transfer history:', e);
+            }
+        }
+
+        function formatTimeAgo(date) {
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+
+            if (diff < 60) return 'à l\'instant';
+            if (diff < 3600) return `il y a ${Math.floor(diff / 60)}m`;
+            if (diff < 86400) return `il y a ${Math.floor(diff / 3600)}h`;
+            return `il y a ${Math.floor(diff / 86400)}j`;
+        }
+
+        async function retryTransfer(id) {
+            const token = localStorage.getItem('access_token');
+
+            try {
+                const response = await fetch(`${API_BASE}/transfers/${id}/retry`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    showToast('Transfert relancé', 'success');
+                    loadActiveTransfers();
+                    loadTransferHistory();
+                    loadTransferStats();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Erreur', 'danger');
+                }
+            } catch (e) {
+                console.error('Error retrying transfer:', e);
+                showToast('Erreur de connexion', 'danger');
+            }
+        }
+
+        function showForceTransferModal() {
+            // For now, use prompt - could be a modal later
+            const path = prompt('Chemin du fichier à transférer:');
+            if (!path) return;
+
+            const type = prompt('Type de média (movie, series, anime):');
+            if (!type) return;
+
+            if (!confirm(`Forcer le transfert de "${path}" vers ${type} ?`)) return;
+
+            forceTransfer(path, type);
+        }
+
+        async function forceTransfer(path, mediaType) {
+            const token = localStorage.getItem('access_token');
+
+            try {
+                const response = await fetch(`${API_BASE}/transfers/force?original_path=${encodeURIComponent(path)}&media_type=${mediaType}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    showToast('Transfert forcé créé', 'success');
+                    loadActiveTransfers();
+                    loadTransferStats();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Erreur', 'danger');
+                }
+            } catch (e) {
+                console.error('Error forcing transfer:', e);
+                showToast('Erreur de connexion', 'danger');
+            }
+        }
+
+        // Load transfers when tab is shown
+        document.querySelector('[data-bs-target="#transfersTab"]')?.addEventListener('shown.bs.tab', () => {
+            loadTransferStats();
+            loadActiveTransfers();
+            loadTransferHistory();
+            if (!transfersWs || transfersWs.readyState !== WebSocket.OPEN) {
+                initTransfersWebSocket();
+            }
+        });
     </script>
 </body>
 

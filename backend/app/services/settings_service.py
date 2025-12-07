@@ -220,6 +220,204 @@ class SettingsService:
     def media_types(self) -> List[str]:
         """Get all configured media types."""
         return list(self.get_library_paths().keys())
+    
+    # =========================================================================
+    # RENAME SETTINGS
+    # =========================================================================
+    
+    def get_rename_settings(self) -> Dict[str, Any]:
+        """
+        Get all rename settings.
+        Returns settings with default values for any missing keys.
+        """
+        from ..models.rename_settings import RenameSettings
+        
+        with SessionLocal() as db:
+            settings = db.query(RenameSettings).first()
+            
+            if not settings:
+                return self._get_default_rename_settings()
+            
+            return {
+                "id": settings.id,
+                "preferred_language": settings.preferred_language,
+                "title_language": settings.title_language,
+                "movie_format": settings.movie_format,
+                "series_format": settings.series_format,
+                "anime_format": settings.anime_format,
+                "include_tmdb_id": settings.include_tmdb_id,
+                "include_tvdb_id": settings.include_tvdb_id,
+                "replace_special_chars": settings.replace_special_chars,
+                "special_char_map": settings.special_char_map,
+                "anime_title_preference": settings.anime_title_preference,
+                "use_ai_fallback": settings.use_ai_fallback,
+                "updated_at": settings.updated_at.isoformat() if settings.updated_at else None
+            }
+    
+    def _get_default_rename_settings(self) -> Dict[str, Any]:
+        """Get default rename settings."""
+        return {
+            "id": None,
+            "preferred_language": "french",
+            "title_language": "english",
+            "movie_format": "{title} ({year})",
+            "series_format": "{title} ({year})/Season {season:02d}/{title} ({year}) - S{season:02d}E{episode:02d}",
+            "anime_format": "{title} ({year})/Season {season:02d}/{title} ({year}) - S{season:02d}E{episode:02d}",
+            "include_tmdb_id": False,
+            "include_tvdb_id": False,
+            "replace_special_chars": False,
+            "special_char_map": None,
+            "anime_title_preference": "english",
+            "use_ai_fallback": True,
+            "updated_at": None
+        }
+    
+    def update_rename_settings(self, settings_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update rename settings.
+        Creates settings if they don't exist.
+        """
+        from ..models.rename_settings import RenameSettings
+        
+        with SessionLocal() as db:
+            settings = db.query(RenameSettings).first()
+            
+            if not settings:
+                # Create new settings
+                settings = RenameSettings()
+                db.add(settings)
+            
+            # Update fields
+            for key, value in settings_data.items():
+                if hasattr(settings, key) and key not in ["id", "updated_at"]:
+                    setattr(settings, key, value)
+            
+            db.commit()
+            db.refresh(settings)
+            
+            logger.info(f"Rename settings updated")
+            return self.get_rename_settings()
+    
+    def get_movie_format(self) -> str:
+        """Get movie naming format template."""
+        settings = self.get_rename_settings()
+        return settings.get("movie_format", "{title} ({year})")
+    
+    def get_series_format(self) -> str:
+        """Get series naming format template."""
+        settings = self.get_rename_settings()
+        return settings.get("series_format", "{title} ({year})/Season {season:02d}/{title} ({year}) - S{season:02d}E{episode:02d}")
+    
+    def get_anime_format(self) -> str:
+        """Get anime naming format template."""
+        settings = self.get_rename_settings()
+        return settings.get("anime_format", "{title} ({year})/Season {season:02d}/{title} ({year}) - S{season:02d}E{episode:02d}")
+    
+    # =========================================================================
+    # TITLE MAPPINGS
+    # =========================================================================
+    
+    def get_title_mappings(self, media_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get all title mappings, optionally filtered by media type.
+        """
+        from ..models.rename_settings import TitleMapping
+        
+        with SessionLocal() as db:
+            query = db.query(TitleMapping)
+            
+            if media_type:
+                query = query.filter(TitleMapping.media_type == media_type)
+            
+            mappings = query.order_by(TitleMapping.created_at.desc()).all()
+            
+            return [
+                {
+                    "id": m.id,
+                    "pattern": m.pattern,
+                    "plex_title": m.plex_title,
+                    "media_type": m.media_type,
+                    "tmdb_id": m.tmdb_id,
+                    "tvdb_id": m.tvdb_id,
+                    "year": m.year,
+                    "created_at": m.created_at.isoformat() if m.created_at else None
+                }
+                for m in mappings
+            ]
+    
+    def add_title_mapping(
+        self,
+        pattern: str,
+        plex_title: str,
+        media_type: str,
+        tmdb_id: Optional[int] = None,
+        tvdb_id: Optional[int] = None,
+        year: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Add a title mapping.
+        """
+        from ..models.rename_settings import TitleMapping
+        
+        with SessionLocal() as db:
+            mapping = TitleMapping(
+                pattern=pattern,
+                plex_title=plex_title,
+                media_type=media_type,
+                tmdb_id=tmdb_id,
+                tvdb_id=tvdb_id,
+                year=year
+            )
+            db.add(mapping)
+            db.commit()
+            db.refresh(mapping)
+            
+            logger.info(f"Title mapping added: {pattern} → {plex_title}")
+            
+            return {
+                "id": mapping.id,
+                "pattern": mapping.pattern,
+                "plex_title": mapping.plex_title,
+                "media_type": mapping.media_type,
+                "tmdb_id": mapping.tmdb_id,
+                "tvdb_id": mapping.tvdb_id,
+                "year": mapping.year,
+                "created_at": mapping.created_at.isoformat()
+            }
+    
+    def remove_title_mapping(self, mapping_id: int) -> bool:
+        """
+        Remove a title mapping by ID.
+        """
+        from ..models.rename_settings import TitleMapping
+        
+        with SessionLocal() as db:
+            mapping = db.query(TitleMapping).filter(TitleMapping.id == mapping_id).first()
+            
+            if not mapping:
+                return False
+            
+            db.delete(mapping)
+            db.commit()
+            
+            logger.info(f"Title mapping removed: ID {mapping_id}")
+            return True
+    
+    def find_title_mapping(self, torrent_name: str, media_type: str) -> Optional[Dict[str, Any]]:
+        """
+        Find a matching title mapping for a torrent name.
+        Uses glob pattern matching.
+        """
+        import fnmatch
+        
+        mappings = self.get_title_mappings(media_type)
+        
+        for mapping in mappings:
+            # Use glob-style matching
+            if fnmatch.fnmatch(torrent_name.lower(), mapping["pattern"].lower()):
+                return mapping
+        
+        return None
 
 
 # Singleton instance
@@ -253,3 +451,25 @@ def init_default_settings():
             service.set_library_paths(DEFAULT_LIBRARY_PATHS)
             
             logger.info("✓ Default path settings initialized")
+
+
+def init_rename_settings():
+    """
+    Initialize default rename settings in database if not present.
+    Called during app startup.
+    """
+    from ..models.rename_settings import RenameSettings
+    
+    service = get_settings_service()
+    
+    with SessionLocal() as db:
+        existing = db.query(RenameSettings).first()
+        
+        if not existing:
+            logger.info("Initializing default rename settings in database...")
+            
+            settings = RenameSettings()
+            db.add(settings)
+            db.commit()
+            
+            logger.info("✓ Default rename settings initialized")

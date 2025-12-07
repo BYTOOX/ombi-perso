@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .config import get_settings
 from .models.database import init_db
-from .api.v1 import auth_router, search_router, requests_router, admin_router, plex_router
+from .api.v1 import auth_router, search_router, requests_router, admin_router, plex_router, transfers_router
 from .logging_config import setup_logging
 
 # Configure logging with file handlers and module separation
@@ -123,6 +123,7 @@ app.include_router(search_router, prefix="/api/v1")
 app.include_router(requests_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(plex_router, prefix="/api/v1")
+app.include_router(transfers_router, prefix="/api/v1")
 
 
 # Health check endpoint

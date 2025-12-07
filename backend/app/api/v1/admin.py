@@ -607,3 +607,219 @@ async def get_logs(
     )
     
     return result
+
+
+# =========================================================================
+# RENAME SETTINGS
+# =========================================================================
+
+@router.get("/settings/rename")
+async def get_rename_settings(
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    Obtenir la configuration de renommage des fichiers.
+    """
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    return service.get_rename_settings()
+
+
+@router.put("/settings/rename")
+async def update_rename_settings(
+    settings: dict,
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    Mettre à jour la configuration de renommage.
+    """
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    return service.update_rename_settings(settings)
+
+
+@router.post("/settings/rename/preview")
+async def preview_rename(
+    filename: str = Query(..., description="Nom du fichier original"),
+    media_type: str = Query(..., description="Type: movie, series, anime"),
+    tmdb_id: Optional[int] = Query(None, description="TMDB ID si connu"),
+    tvdb_id: Optional[int] = Query(None, description="TVDB ID si connu"),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    Prévisualiser le renommage d'un fichier sans l'appliquer.
+    Utile pour tester les paramètres de renommage.
+    """
+    from ...services.title_resolver import get_title_resolver_service
+    from ...services.settings_service import get_settings_service
+    
+    resolver = get_title_resolver_service()
+    settings = get_settings_service()
+    
+    warnings = []
+    
+    # Resolve the title
+    resolved = await resolver.resolve_title(
+        query=filename,
+        media_type=media_type,
+        tmdb_id=tmdb_id,
+        tvdb_id=tvdb_id
+    )
+    
+    if resolved.get("source") == "fallback":
+        warnings.append("Titre non trouvé, utilisation du fallback")
+    
+    # Get format template
+    if media_type == "movie":
+        template = settings.get_movie_format()
+    elif media_type == "anime":
+        template = settings.get_anime_format()
+    else:
+        template = settings.get_series_format()
+    
+    # Extract season/episode if series/anime
+    season, episode = None, None
+    if media_type in ["series", "anime"]:
+        season, episode = resolver.extract_season_episode(filename)
+        if not season:
+            season = 1
+            warnings.append("Saison non détectée, défaut à S01")
+        if not episode:
+            episode = 1
+            warnings.append("Épisode non détecté, défaut à E01")
+    
+    # Build the renamed path
+    title = resolved.get("title", "Unknown")
+    year = resolved.get("year")
+    
+    # Apply format template
+    try:
+        if media_type == "movie":
+            folder_structure = template.format(
+                title=title,
+                year=year or "Unknown"
+            )
+            renamed = f"{folder_structure}.mkv"
+        else:
+            folder_structure = template.format(
+                title=title,
+                year=year or "Unknown",
+                season=season or 1,
+                episode=episode or 1
+            )
+            renamed = f"{folder_structure}.mkv"
+    except Exception as e:
+        folder_structure = f"{title} ({year or 'Unknown'})"
+        renamed = folder_structure
+        warnings.append(f"Erreur de format: {str(e)}")
+    
+    # Add IDs if configured
+    rename_settings = settings.get_rename_settings()
+    id_suffix = ""
+    if rename_settings.get("include_tmdb_id") and resolved.get("tmdb_id"):
+        id_suffix += f" {{tmdb-{resolved['tmdb_id']}}}"
+    if rename_settings.get("include_tvdb_id") and resolved.get("tvdb_id"):
+        id_suffix += f" {{tvdb-{resolved['tvdb_id']}}}"
+    
+    return {
+        "original": filename,
+        "renamed": renamed,
+        "folder_structure": folder_structure + id_suffix,
+        "sources_used": [resolved.get("source", "unknown")],
+        "confidence": resolved.get("confidence", 0.5),
+        "warnings": warnings,
+        "resolved_info": {
+            "title": resolved.get("title"),
+            "original_title": resolved.get("original_title"),
+            "year": resolved.get("year"),
+            "tmdb_id": resolved.get("tmdb_id"),
+            "tvdb_id": resolved.get("tvdb_id"),
+            "season": season,
+            "episode": episode
+        }
+    }
+
+
+@router.post("/settings/rename/test")
+async def test_rename(
+    filename: str = Query(..., description="Nom de fichier exemple"),
+    media_type: str = Query("anime", description="Type: movie, series, anime"),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    Tester le renommage d'un fichier exemple.
+    Raccourci pour preview sans IDs externes.
+    """
+    return await preview_rename(
+        filename=filename,
+        media_type=media_type,
+        tmdb_id=None,
+        tvdb_id=None,
+        current_user=current_user
+    )
+
+
+# =========================================================================
+# TITLE MAPPINGS
+# =========================================================================
+
+@router.get("/settings/rename/mappings")
+async def get_title_mappings(
+    media_type: Optional[str] = Query(None, description="Filtrer par type"),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    Obtenir tous les mappings de titres manuels.
+    """
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    return {"mappings": service.get_title_mappings(media_type)}
+
+
+@router.post("/settings/rename/mappings")
+async def add_title_mapping(
+    pattern: str = Query(..., description="Pattern glob (ex: *One.Piece*)"),
+    plex_title: str = Query(..., description="Titre Plex correct"),
+    media_type: str = Query(..., description="Type: movie, series, anime"),
+    tmdb_id: Optional[int] = Query(None),
+    tvdb_id: Optional[int] = Query(None),
+    year: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    Ajouter un mapping de titre manuel.
+    """
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    return service.add_title_mapping(
+        pattern=pattern,
+        plex_title=plex_title,
+        media_type=media_type,
+        tmdb_id=tmdb_id,
+        tvdb_id=tvdb_id,
+        year=year
+    )
+
+
+@router.delete("/settings/rename/mappings/{mapping_id}")
+async def delete_title_mapping(
+    mapping_id: int,
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    Supprimer un mapping de titre.
+    """
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    success = service.remove_title_mapping(mapping_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Mapping non trouvé")
+    
+    return {"message": "Mapping supprimé"}
+
