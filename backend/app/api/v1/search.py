@@ -454,6 +454,7 @@ async def _discover_anime(category: str, search_service: MediaSearchService):
     """Discover anime via AniList + US animated series from TMDB."""
     import httpx
     import random
+    import asyncio
     from datetime import date
     
     results = []
@@ -543,24 +544,74 @@ async def _discover_anime(category: str, search_service: MediaSearchService):
             items = anilist_data.get("data", {}).get("Page", {}).get("media", [])
             logging.info(f"AniList items count: {len(items)}")
             
+            # Parse AniList results
+            anilist_results = []
             for item in items:
                 title = item.get("title", {})
-                results.append({
+                description = item.get("description", "")
+                if description:
+                    description = description.replace("<br>", " ").replace("<i>", "").replace("</i>", "")[:500]
+                
+                anilist_results.append({
                     "id": str(item["id"]),
                     "source": "anilist",
                     "media_type": "anime",
                     "title": title.get("english") or title.get("romaji") or "Unknown",
+                    "romaji_title": title.get("romaji"),
                     "original_title": title.get("native"),
                     "year": item.get("startDate", {}).get("year"),
                     "poster_url": item.get("coverImage", {}).get("extraLarge") or item.get("coverImage", {}).get("large"),
                     "backdrop_url": item.get("bannerImage"),
-                    "overview": item.get("description", "").replace("<br>", " ").replace("<i>", "").replace("</i>", "")[:500] if item.get("description") else None,
+                    "overview": description,
                     "rating": (item.get("averageScore") or 0) / 10,
                     "vote_count": item.get("popularity"),
                     "genres": item.get("genres", [])
                 })
             
-            # 2. Fetch from TMDB (US/Western animated series)
+            # Try to enrich with French descriptions from TMDB
+            if settings.tmdb_api_key and anilist_results:
+                async def get_french_overview(title: str, year: int = None) -> str:
+                    try:
+                        params = {
+                            "api_key": settings.tmdb_api_key,
+                            "query": title,
+                            "language": "fr-FR",
+                            "include_adult": "false"
+                        }
+                        if year:
+                            params["first_air_date_year"] = year
+                        
+                        resp = await client.get(
+                            "https://api.themoviedb.org/3/search/tv",
+                            params=params
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            if data.get("results"):
+                                overview = data["results"][0].get("overview")
+                                if overview and len(overview) > 20:
+                                    return overview
+                    except Exception:
+                        pass
+                    return None
+                
+                # Enrich top 10 results in parallel
+                enrichment_tasks = []
+                for r in anilist_results[:10]:
+                    search_title = r.get("romaji_title") or r.get("title")
+                    enrichment_tasks.append(get_french_overview(search_title, r.get("year")))
+                
+                try:
+                    french_overviews = await asyncio.gather(*enrichment_tasks, return_exceptions=True)
+                    for i, overview in enumerate(french_overviews):
+                        if isinstance(overview, str) and overview:
+                            anilist_results[i]["overview"] = overview
+                except Exception as e:
+                    logging.debug(f"Failed to enrich anime descriptions: {e}")
+            
+            results.extend(anilist_results)
+            
+            # 2. Fetch from TMDB (US/Western animated series) - already in French
             today = date.today().isoformat()
             tmdb_params = {
                 "api_key": settings.tmdb_api_key,
@@ -672,6 +723,38 @@ async def _get_anime_hero(search_service: MediaSearchService):
             item = random.choice(items)
             title = item.get("title", {})
             
+            # Clean AniList description
+            description = item.get("description", "")
+            if description:
+                description = description.replace("<br>", " ").replace("<i>", "").replace("</i>", "")[:500]
+            
+            # Try to get French description from TMDB
+            if settings.tmdb_api_key:
+                search_title = title.get("romaji") or title.get("english")
+                year = item.get("startDate", {}).get("year")
+                try:
+                    params = {
+                        "api_key": settings.tmdb_api_key,
+                        "query": search_title,
+                        "language": "fr-FR",
+                        "include_adult": "false"
+                    }
+                    if year:
+                        params["first_air_date_year"] = year
+                    
+                    tmdb_resp = await client.get(
+                        "https://api.themoviedb.org/3/search/tv",
+                        params=params
+                    )
+                    if tmdb_resp.status_code == 200:
+                        tmdb_data = tmdb_resp.json()
+                        if tmdb_data.get("results"):
+                            french_overview = tmdb_data["results"][0].get("overview")
+                            if french_overview and len(french_overview) > 20:
+                                description = french_overview
+                except Exception:
+                    pass  # Keep original description
+            
             return {
                 "id": str(item["id"]),
                 "source": "anilist",
@@ -681,7 +764,7 @@ async def _get_anime_hero(search_service: MediaSearchService):
                 "year": item.get("startDate", {}).get("year"),
                 "poster_url": item.get("coverImage", {}).get("extraLarge") or item.get("coverImage", {}).get("large"),
                 "backdrop_url": item.get("bannerImage"),
-                "overview": item.get("description", "").replace("<br>", " ").replace("<i>", "").replace("</i>", "")[:500] if item.get("description") else None,
+                "overview": description or None,
                 "rating": (item.get("averageScore") or 0) / 10,
                 "vote_count": item.get("popularity"),
                 "genres": item.get("genres", [])

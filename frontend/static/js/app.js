@@ -894,19 +894,36 @@ async function openMediaModal(media) {
     const isSeries = media.media_type === 'tv' || media.media_type === 'series' || media.media_type === 'anime';
     if (isSeries && !media.already_available) {
         try {
-            // For now, generate a simple season selector
-            // In the future, we can fetch seasons from TMDB and compare with available
+            // Fetch full details from API to get accurate season count
+            let totalSeasons = media.seasons_count || 1;
+
+            // If we don't have seasons_count, fetch details from TMDB/AniList
+            if (!media.seasons_count || media.seasons_count <= 1) {
+                try {
+                    const source = media.source || 'tmdb';
+                    const mediaType = media.media_type === 'anime' ? 'anime' : 'tv';
+                    const details = await api.request(`/search/${source}/${media.id}?media_type=${mediaType}`);
+                    if (details && details.seasons_count) {
+                        totalSeasons = details.seasons_count;
+                    } else if (details && details.episodes_count) {
+                        // For anime without explicit season count, estimate based on episodes
+                        // Most anime seasons have 12-26 episodes
+                        totalSeasons = Math.max(1, Math.ceil(details.episodes_count / 24));
+                    }
+                } catch (detailsError) {
+                    console.log('Could not fetch media details for season count:', detailsError);
+                }
+            }
+
+            // Fetch availability info for already-available seasons
             const seasonsAvailability = await api.getSeasonsAvailability(media.id).catch(() => null);
             const availableSeasons = seasonsAvailability?.seasons || [];
-
-            // Get total seasons (we'd need to fetch this from TMDB, for now use a default)
-            const totalSeasons = media.seasons_count || 1;
 
             if (totalSeasons > 0) {
                 seasonSelector.classList.remove('d-none');
 
                 let seasonsHtml = '';
-                for (let i = 1; i <= Math.min(totalSeasons, 10); i++) {
+                for (let i = 1; i <= Math.min(totalSeasons, 20); i++) {
                     const isAvailable = availableSeasons.includes(i);
                     seasonsHtml += `
                         <label class="season-checkbox ${isAvailable ? 'available' : ''}" title="${isAvailable ? 'Déjà disponible' : 'Non disponible'}">

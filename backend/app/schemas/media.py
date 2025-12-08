@@ -9,6 +9,7 @@ class MediaType(str, Enum):
     """Media type for search."""
     ALL = "all"
     MOVIE = "movie"
+    TV = "tv"  # Alias for series (used by frontend)
     SERIES = "series"
     ANIME = "anime"
 

@@ -66,7 +66,7 @@ class MediaSearchService:
             tmdb_movies = await self._search_tmdb(query, "movie", year, page)
             results.extend(tmdb_movies)
         
-        if media_type in ("all", "series"):
+        if media_type in ("all", "series", "tv"):  # 'tv' is frontend alias for series
             tmdb_series = await self._search_tmdb(query, "tv", year, page)
             results.extend(tmdb_series)
         
@@ -249,7 +249,7 @@ class MediaSearchService:
         year: Optional[int] = None,
         page: int = 1
     ) -> List[MediaSearchResult]:
-        """Search AniList for anime."""
+        """Search AniList for anime and enrich with French descriptions from TMDB."""
         graphql_query = """
         query ($search: String, $page: Int, $perPage: Int, $seasonYear: Int) {
             Page(page: $page, perPage: $perPage) {
@@ -302,7 +302,28 @@ class MediaSearchService:
             data = response.json()
             
             media_list = data.get("data", {}).get("Page", {}).get("media", [])
-            return [self._parse_anilist_result(item) for item in media_list]
+            results = [self._parse_anilist_result(item) for item in media_list]
+            
+            # Try to enrich top results with French descriptions from TMDB
+            # Limit to first 10 to avoid too many API calls
+            import asyncio
+            enrichment_tasks = []
+            for result in results[:10]:
+                title_for_search = result.romaji_title or result.title
+                enrichment_tasks.append(
+                    self._get_tmdb_french_overview_for_anime(title_for_search, result.year)
+                )
+            
+            if enrichment_tasks:
+                try:
+                    french_overviews = await asyncio.gather(*enrichment_tasks, return_exceptions=True)
+                    for i, overview in enumerate(french_overviews):
+                        if isinstance(overview, str) and overview:
+                            results[i].overview = overview
+                except Exception as e:
+                    logger.debug(f"Failed to enrich anime descriptions: {e}")
+            
+            return results
         except Exception as e:
             logger.error(f"AniList search error: {e}")
             return []
@@ -462,6 +483,49 @@ class MediaSearchService:
     # =========================================================================
     # HELPERS
     # =========================================================================
+    
+    async def _get_tmdb_french_overview_for_anime(
+        self,
+        title: str,
+        year: Optional[int] = None
+    ) -> Optional[str]:
+        """
+        Try to get French description from TMDB for an anime.
+        
+        TMDB has French translations for many anime, while AniList doesn't.
+        """
+        if not self.settings.tmdb_api_key:
+            return None
+        
+        try:
+            # Search TMDB TV for the anime
+            params = {
+                "api_key": self.settings.tmdb_api_key,
+                "query": title,
+                "language": "fr-FR",
+                "include_adult": False
+            }
+            if year:
+                params["first_air_date_year"] = year
+            
+            response = await self.client.get(
+                f"{self.TMDB_BASE_URL}/search/tv",
+                params=params
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            results = data.get("results", [])
+            if results:
+                # Take the first result's overview if it exists and is not empty
+                overview = results[0].get("overview")
+                if overview and len(overview) > 20:
+                    return overview
+            
+            return None
+        except Exception as e:
+            logger.debug(f"Could not fetch French overview from TMDB: {e}")
+            return None
     
     @staticmethod
     def _extract_year(date_str: Optional[str]) -> Optional[int]:
