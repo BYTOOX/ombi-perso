@@ -176,8 +176,7 @@ const UI = {
                     <img src="${posterUrl}" alt="${media.title}" loading="lazy" 
                          onerror="this.src='/static/img/no-poster.png'">
                     ${rating ? `<span class="media-badge rating">⭐ ${rating}</span>` : ''}
-                    ${media.already_available ? '<span class="media-badge available">Disponible</span>' : ''}
-                    ${media.requested ? '<span class="media-badge requested">Demandé</span>' : ''}
+                    <span class="status-dot ${this.getStatusDotClass(media)}"></span>
                     <div class="media-overlay">
                         <div class="media-overlay-meta">
                             ${media.year || '—'} • ${typeLabel}
@@ -401,8 +400,7 @@ const UI = {
                     <img src="${posterUrl}" alt="${media.title}" loading="lazy" 
                          onerror="this.src='/static/img/no-poster.png'">
                     ${rating ? `<span class="media-badge rating">⭐ ${rating}</span>` : ''}
-                    ${media.already_available ? '<span class="media-badge available">Disponible</span>' : ''}
-                    ${media.requested ? '<span class="media-badge requested">Demandé</span>' : ''}
+                    <span class="status-dot ${this.getStatusDotClass(media)}"></span>
                     <div class="media-overlay">
                         <div class="media-overlay-meta">
                             ${media.year || '—'} • ${typeLabel}
@@ -418,6 +416,15 @@ const UI = {
                 <div class="media-year">${media.year || ''}</div>
             </div>
         `;
+    },
+
+    /**
+     * Get status dot CSS class based on media state
+     */
+    getStatusDotClass(media) {
+        if (media.already_available) return 'green';
+        if (media.requested) return 'orange';
+        return 'red';
     },
 
     /**
@@ -684,13 +691,25 @@ function createMiniHero(media, catInfo) {
 }
 
 /**
+ * Get responsive item count based on window width
+ */
+function getResponsiveTileItemCount() {
+    const width = window.innerWidth;
+    if (width < 768) return 2;      // Mobile: 2 items
+    if (width < 1024) return 3;     // Tablet: 3 items
+    if (width < 1400) return 4;     // Small desktop: 4 items
+    return 5;                        // Large desktop: 5 items
+}
+
+/**
  * Create expandable tile section
  */
 function createExpandableTile(title, icon, items, id) {
     if (!items || items.length === 0) return '';
 
-    const visibleItems = items.slice(0, 5);
-    const hasMore = items.length > 5;
+    const itemCount = getResponsiveTileItemCount();
+    const visibleItems = items.slice(0, itemCount);
+    const hasMore = items.length > itemCount;
 
     // Store items for expansion
     if (!window.tileData) window.tileData = {};
@@ -727,13 +746,14 @@ function toggleTile(id) {
     const isExpanded = tile.classList.toggle('expanded');
     const content = tile.querySelector('.tile-content');
     const items = window.tileData?.[id] || [];
+    const itemCount = getResponsiveTileItemCount();
 
     if (isExpanded) {
         // Show all items
         content.innerHTML = items.map(item => UI.createMediaCard(item)).join('');
     } else {
-        // Show only first 5
-        content.innerHTML = items.slice(0, 5).map(item => UI.createMediaCard(item)).join('');
+        // Show only responsive count
+        content.innerHTML = items.slice(0, itemCount).map(item => UI.createMediaCard(item)).join('');
     }
 
     // Re-attach click handlers

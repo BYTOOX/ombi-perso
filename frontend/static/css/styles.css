@@ -734,23 +734,27 @@ a:hover {
 }
 
 /* -----------------------------------------------------------------------------
-   MAIN CONTENT
+   MAIN CONTENT - Positioned above hero background
    ----------------------------------------------------------------------------- */
 .main-content {
+    position: relative;
+    z-index: 1;
     padding-top: calc(var(--navbar-height) + 24px);
     min-height: 100vh;
 }
 
 /* -----------------------------------------------------------------------------
-   HERO SECTION
+   HERO SECTION - Extended background behind content
    ----------------------------------------------------------------------------- */
 .hero-section {
-    position: relative;
-    height: 70vh;
-    min-height: 500px;
-    max-height: 700px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100vh;
     overflow: hidden;
-    margin-bottom: 32px;
+    z-index: 0;
+    pointer-events: none;
 }
 
 .hero-backdrop {
@@ -770,15 +774,20 @@ a:hover {
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(to right,
+    background:
+        /* Side gradient for content readability */
+        linear-gradient(to right,
             var(--bg-dark) 0%,
-            rgba(10, 10, 15, 0.8) 30%,
-            rgba(10, 10, 15, 0.4) 60%,
+            rgba(10, 10, 15, 0.85) 25%,
+            rgba(10, 10, 15, 0.5) 50%,
             transparent 100%),
+        /* Bottom fade for elegant transition */
         linear-gradient(to top,
             var(--bg-dark) 0%,
-            rgba(10, 10, 15, 0.8) 20%,
-            transparent 50%);
+            rgba(10, 10, 15, 0.95) 15%,
+            rgba(10, 10, 15, 0.7) 35%,
+            rgba(10, 10, 15, 0.3) 55%,
+            transparent 100%);
 }
 
 .hero-content {
@@ -788,8 +797,10 @@ a:hover {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: 0 5%;
+    padding: var(--navbar-height) 5% 0 5%;
+    padding-top: calc(var(--navbar-height) + 50px);
     max-width: 600px;
+    pointer-events: auto;
 }
 
 .hero-badge {
@@ -862,6 +873,7 @@ a:hover {
 .media-section {
     margin-bottom: 40px;
     position: relative;
+    overflow: visible;
 }
 
 .section-header {
@@ -903,8 +915,9 @@ a:hover {
     display: flex;
     gap: 16px;
     overflow-x: auto;
+    overflow-y: visible;
     scroll-behavior: smooth;
-    padding: 8px 4% 24px;
+    padding: 16px 4% 24px;
     -ms-overflow-style: none;
     scrollbar-width: none;
 }
@@ -954,13 +967,13 @@ a:hover {
 }
 
 /* -----------------------------------------------------------------------------
-   MEDIA CARDS
+   MEDIA CARDS - Netflix Modern Style
    ----------------------------------------------------------------------------- */
 .media-card {
     flex: 0 0 auto;
     width: 180px;
     cursor: pointer;
-    transition: all var(--transition-normal);
+    position: relative;
 }
 
 @media (min-width: 768px) {
@@ -970,7 +983,6 @@ a:hover {
 }
 
 .media-card:hover {
-    transform: scale(1.08);
     z-index: 10;
 }
 
@@ -982,17 +994,20 @@ a:hover {
     background: var(--bg-card);
     margin-bottom: 10px;
     box-shadow: var(--shadow-md);
+    border: 2px solid transparent;
+    transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.media-card:hover .media-poster {
+    border-color: var(--primary);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px var(--primary-glow);
 }
 
 .media-poster img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform var(--transition-slow);
-}
-
-.media-card:hover .media-poster img {
-    transform: scale(1.1);
+    /* NO transform on hover - preserve image integrity */
 }
 
 /* Poster Overlay */
@@ -1066,6 +1081,54 @@ a:hover {
 /* Stack requested badge below available badge */
 .media-poster:has(.media-badge.available) .media-badge.requested {
     top: 38px;
+}
+
+/* Status Dot - Glassmorphism Style */
+.status-dot {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    z-index: 5;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.status-dot.green {
+    background: rgba(74, 222, 128, 0.7);
+    box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+}
+
+.status-dot.orange {
+    background: rgba(251, 191, 36, 0.7);
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+    animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.status-dot.red {
+    background: rgba(248, 113, 113, 0.6);
+    box-shadow: 0 0 6px rgba(248, 113, 113, 0.3);
+}
+
+.status-dot.gray {
+    background: rgba(156, 163, 175, 0.5);
+}
+
+@keyframes pulse-dot {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.7;
+        transform: scale(1.15);
+    }
 }
 
 /* Media Title */
@@ -2604,7 +2667,7 @@ a:hover {
 }
 
 /* -----------------------------------------------------------------------------
-   HERO SECTION POLISH
+   HERO SECTION POLISH - Enhanced fade for elegant finish
    ----------------------------------------------------------------------------- */
 .hero-section::after {
     content: '';
@@ -2612,8 +2675,13 @@ a:hover {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 200px;
-    background: linear-gradient(to top, var(--bg-dark) 0%, transparent 100%);
+    height: 60vh;
+    background: linear-gradient(to top,
+            var(--bg-dark) 0%,
+            rgba(10, 10, 15, 0.98) 20%,
+            rgba(10, 10, 15, 0.85) 40%,
+            rgba(10, 10, 15, 0.5) 70%,
+            transparent 100%);
     pointer-events: none;
     z-index: 5;
 }
@@ -3019,6 +3087,13 @@ a:hover {
    EXPANDABLE TILES (In-place expansion for "Tout voir")
    ============================================================================= */
 
+.content-tiles {
+    position: relative;
+    z-index: 2;
+    margin-top: 24px;
+    padding-bottom: 50px;
+}
+
 .tiles-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -3026,18 +3101,21 @@ a:hover {
 }
 
 .expandable-tile {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-dark);
     border-radius: var(--radius-lg);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     padding: 16px;
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    overflow: hidden;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
+
+.expandable-tile:hover {
+    border-color: rgba(139, 92, 246, 0.2);
 }
 
 .expandable-tile.expanded {
-    background: rgba(255, 255, 255, 0.05);
     border-color: rgba(139, 92, 246, 0.3);
-    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
     grid-column: span 2;
     /* Full width when expanded */
 }
@@ -3099,20 +3177,27 @@ a:hover {
 }
 
 .tile-content {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    display: flex;
+    flex-wrap: nowrap;
     gap: 16px;
-    max-height: 400px;
-    overflow: hidden;
+    padding: 10px;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    overflow-x: clip;
+    overflow-y: visible;
     transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .expandable-tile.expanded .tile-content {
-    max-height: 2000px;
+    flex-wrap: wrap;
+    max-height: none;
+    overflow: visible;
 }
 
 .tile-content .media-card {
-    width: 100%;
+    flex: 0 0 170px;
+    min-width: 130px;
+    max-width: 180px;
 }
 
 /* =============================================================================
@@ -3254,9 +3339,18 @@ a:hover {
         padding: 20px;
     }
 
+    .tile-content .media-card {
+        flex: 0 0 140px;
+        min-width: 110px;
+        max-width: 160px;
+    }
+
     .tile-content {
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-        gap: 12px;
+        max-height: 280px;
+    }
+
+    .content-tiles {
+        margin-top: 50vh;
     }
 }
 
@@ -3291,6 +3385,21 @@ a:hover {
     .tiles-grid {
         grid-template-columns: 1fr;
         gap: 12px;
+    }
+
+    .tile-content .media-card {
+        flex: 0 0 120px;
+        min-width: 100px;
+        max-width: 140px;
+    }
+
+    .tile-content {
+        max-height: 240px;
+    }
+
+    .content-tiles {
+        margin-top: 35vh;
+        /* Even smaller on mobile */
     }
 }
 
