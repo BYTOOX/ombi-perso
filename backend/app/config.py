@@ -82,9 +82,31 @@ class Settings(BaseSettings):
     @field_validator("library_paths", mode="before")
     @classmethod
     def parse_library_paths(cls, v):
-        """Parse library_paths from JSON string if needed."""
+        """Parse library_paths from JSON string if needed.
+        
+        Returns default paths if value is empty/None (paths managed via Admin Panel).
+        """
+        # Default paths - used when not configured via env
+        default_paths = {
+            "movie": "/media/Films",
+            "animated_movie": "/media/Films d'animation",
+            "series": "/media/Série TV",
+            "animated_series": "/media/Série Animée",
+            "anime": "/media/Animé (JAP)"
+        }
+        
+        # Handle None or empty string
+        if v is None or v == "" or (isinstance(v, str) and v.strip() == ""):
+            return default_paths
+        
+        # Parse JSON string
         if isinstance(v, str):
-            return json.loads(v)
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                # Invalid JSON, return defaults
+                return default_paths
+        
         return v
     
     def get_library_path(self, media_type: str) -> Optional[str]:
