@@ -4,7 +4,7 @@ Handles library sync, availability checks, and Plex webhooks.
 """
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel
 
 from ...services.plex_cache_service import get_plex_cache_service, PlexCacheService
