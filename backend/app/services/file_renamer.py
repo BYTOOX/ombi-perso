@@ -217,7 +217,7 @@ class FileRenamerService:
         target_path = target_folder / new_name
         
         try:
-            logger.info(f"📁 Renaming movie:")
+            logger.info("📁 Renaming movie:")
             logger.info(f"   FROM: {video_path}")
             logger.info(f"   TO:   {target_path}")
             shutil.move(str(video_path), str(target_path))
@@ -300,12 +300,12 @@ class FileRenamerService:
         target_folder.mkdir(parents=True, exist_ok=True)
         
         # Build filename
-        filename_template = template_parts[-1] if len(template_parts) > 2 else f"{{title}} ({{year}}) - S{{season:02d}}E{{episode:02d}}"
+        filename_template = template_parts[-1] if len(template_parts) > 2 else "{title} ({year}) - S{season:02d}E{episode:02d}"
         new_name = self._apply_template(filename_template, vars_dict) + video_path.suffix
         target_path = target_folder / new_name
         
         try:
-            logger.info(f"📁 Renaming episode:")
+            logger.info("📁 Renaming episode:")
             logger.info(f"   FROM: {video_path}")
             logger.info(f"   TO:   {target_path}")
             shutil.move(str(video_path), str(target_path))

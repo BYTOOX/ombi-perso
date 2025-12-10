@@ -3,7 +3,7 @@ System settings model for storing configuration in database.
 Replaces .env for paths configuration (download_path, library_paths).
 """
 from datetime import datetime
-from typing import Optional
+
 from sqlalchemy import String, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 

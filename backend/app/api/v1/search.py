@@ -5,7 +5,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, Query, HTTPException
 
 from ...services.media_search import MediaSearchService, get_media_search_service
-from ...services.plex_manager import PlexManagerService, get_plex_manager_service
+
 from ...services.plex_cache_service import PlexCacheService, get_plex_cache_service
 from ...schemas.media import MediaSearchResult, MediaDetails, MediaType
 from .auth import get_current_user

@@ -2,17 +2,16 @@
 Plex Library Cache Service.
 Manages local cache of Plex library for fast availability checks.
 """
-import asyncio
 import logging
 import re
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Set
+from datetime import datetime
+from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 
-from sqlalchemy import select, delete
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
-from ..models.database import SessionLocal, AsyncSessionLocal
+from ..models.database import SessionLocal
 from ..models.plex_library import PlexLibraryItem, PlexSyncStatus
 from ..config import get_settings
 from .plex_manager import get_plex_manager_service

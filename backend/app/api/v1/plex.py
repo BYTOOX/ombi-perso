@@ -4,7 +4,7 @@ Handles library sync, availability checks, and Plex webhooks.
 """
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, BackgroundTasks, Request
 from pydantic import BaseModel
 
 from ...services.plex_cache_service import get_plex_cache_service, PlexCacheService
@@ -59,6 +59,30 @@ class SyncStatusResponse(BaseModel):
     items_without_guid: int = 0
     last_sync_message: Optional[str] = None
     sync_in_progress: bool = False
+
+
+class EpisodeInfo(BaseModel):
+    episode_number: int
+    title: str
+    summary: Optional[str] = None
+    duration_ms: Optional[int] = None
+    resolution: Optional[str] = None
+    video_codec: Optional[str] = None
+    audio_languages: list = []
+    subtitle_languages: list = []
+
+
+class SeasonInfo(BaseModel):
+    season_number: int
+    title: Optional[str] = None
+    episode_count: int
+    episodes: list[EpisodeInfo] = []
+
+
+class SeriesEpisodesResponse(BaseModel):
+    show_title: str
+    total_seasons: int
+    seasons: list[SeasonInfo] = []
 
 
 # =============================================================================
@@ -149,6 +173,35 @@ async def get_seasons_availability(
     """
     result = plex_cache.check_seasons_availability(tmdb_id)
     return SeasonsAvailabilityResponse(**result)
+
+
+@router.get("/series/{rating_key}/episodes", response_model=SeriesEpisodesResponse)
+async def get_series_episodes(
+    rating_key: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get detailed episode information for a TV series.
+    
+    Returns all seasons with their episodes including:
+    - Episode number and title
+    - Resolution (4K, 1080p, 720p, etc.)
+    - Video codec (HEVC, H264, etc.)
+    - Audio languages
+    - Subtitle languages
+    
+    Used by frontend to display available episodes in the media modal.
+    """
+    plex_manager = get_plex_manager_service()
+    result = plex_manager.get_series_episodes(rating_key)
+    
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail="Series not found or Plex not connected"
+        )
+    
+    return SeriesEpisodesResponse(**result)
 
 
 # =============================================================================

@@ -473,7 +473,7 @@ class TorrentScraperService:
                 logger.error("[Scraper] Cannot download torrent: login failed")
                 return None
             download_url = f"{self.settings.ygg_base_url}/engine/download_torrent?id={torrent_id}"
-            logger.info(f"[Scraper] Using authenticated URL for download")
+            logger.info("[Scraper] Using authenticated URL for download")
         
         # Build cookies for FlareSolverr
         cookies_to_send = []
@@ -492,7 +492,7 @@ class TorrentScraperService:
         if cookies_to_send:
             payload["cookies"] = cookies_to_send
         
-        logger.info(f"[Scraper] Downloading torrent via FlareSolverr...")
+        logger.info("[Scraper] Downloading torrent via FlareSolverr...")
         
         try:
             async with httpx.AsyncClient(timeout=70.0) as client:

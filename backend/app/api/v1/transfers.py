@@ -7,8 +7,6 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy import select, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
-import asyncio
-import json
 import logging
 
 from ...models import get_db

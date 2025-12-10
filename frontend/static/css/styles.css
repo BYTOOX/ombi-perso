@@ -3851,3 +3851,170 @@ a:hover {
 .toast.bg-success .toast-body {
     color: #fff !important;
 }
+
+/* -----------------------------------------------------------------------------
+   SEASONS ACCORDION (for available series)
+   ----------------------------------------------------------------------------- */
+.seasons-accordion {
+    margin-top: 16px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.season-accordion-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-md);
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.season-accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.season-accordion-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.season-accordion-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.season-accordion-title i {
+    color: var(--success);
+}
+
+.season-episode-count {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.season-accordion-toggle {
+    color: var(--text-muted);
+    transition: transform 0.3s ease;
+}
+
+.season-accordion-item.expanded .season-accordion-toggle {
+    transform: rotate(180deg);
+}
+
+.season-accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.season-accordion-item.expanded .season-accordion-content {
+    max-height: 500px;
+}
+
+.episode-list {
+    padding: 0 16px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.episode-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-sm);
+    gap: 8px;
+}
+
+.episode-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.episode-number {
+    font-weight: 700;
+    color: var(--primary-light);
+    font-size: 0.85rem;
+    min-width: 35px;
+}
+
+.episode-title {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.episode-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.episode-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.episode-badge.resolution {
+    background: rgba(139, 92, 246, 0.2);
+    color: var(--primary-light);
+}
+
+.episode-badge.resolution.uhd {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2));
+    color: #fbbf24;
+}
+
+.episode-badge.codec {
+    background: rgba(99, 102, 241, 0.2);
+    color: #818cf8;
+}
+
+.episode-badge.audio {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+.episode-loading {
+    text-align: center;
+    padding: 16px;
+    color: var(--text-muted);
+}
+
+.episode-loading .spinner-border {
+    width: 20px;
+    height: 20px;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+    .episode-item {
+        flex-wrap: wrap;
+    }
+
+    .episode-badges {
+        width: 100%;
+        margin-top: 4px;
+        justify-content: flex-start;
+    }
+}

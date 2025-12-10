@@ -281,6 +281,117 @@ class PlexManagerService:
             logger.error(f"Error getting media info: {e}")
             return None
     
+    def get_series_episodes(self, rating_key: str) -> Optional[Dict[str, Any]]:
+        """
+        Get detailed episode information for a TV series.
+        
+        Args:
+            rating_key: Plex rating key for the show
+            
+        Returns:
+            Dict with seasons and their episodes including media details
+        """
+        if not self.server:
+            return None
+        
+        try:
+            show = self.server.fetchItem(int(rating_key))
+            
+            if show.type != 'show':
+                logger.warning(f"Item {rating_key} is not a show, got: {show.type}")
+                return None
+            
+            seasons_data = []
+            
+            for season in show.seasons():
+                # Skip specials (season 0)
+                if season.seasonNumber == 0:
+                    continue
+                    
+                episodes_data = []
+                
+                for episode in season.episodes():
+                    episode_info = {
+                        "episode_number": episode.index,
+                        "title": episode.title,
+                        "summary": getattr(episode, 'summary', None),
+                        "duration_ms": getattr(episode, 'duration', None),
+                        "resolution": None,
+                        "video_codec": None,
+                        "audio_languages": [],
+                        "subtitle_languages": []
+                    }
+                    
+                    # Extract media info from the episode
+                    if episode.media:
+                        media = episode.media[0]  # Primary media version
+                        episode_info["resolution"] = self._get_resolution_label(
+                            getattr(media, 'videoResolution', None),
+                            getattr(media, 'height', None)
+                        )
+                        episode_info["video_codec"] = getattr(media, 'videoCodec', None)
+                        
+                        # Get audio/subtitle info from parts
+                        if media.parts:
+                            part = media.parts[0]
+                            for stream in getattr(part, 'streams', []):
+                                if stream.streamType == 2:  # Audio stream
+                                    lang = getattr(stream, 'language', None) or getattr(stream, 'languageCode', 'Unknown')
+                                    if lang and lang not in episode_info["audio_languages"]:
+                                        episode_info["audio_languages"].append(lang)
+                                elif stream.streamType == 3:  # Subtitle stream
+                                    lang = getattr(stream, 'language', None) or getattr(stream, 'languageCode', 'Unknown')
+                                    if lang and lang not in episode_info["subtitle_languages"]:
+                                        episode_info["subtitle_languages"].append(lang)
+                    
+                    episodes_data.append(episode_info)
+                
+                seasons_data.append({
+                    "season_number": season.seasonNumber,
+                    "title": season.title,
+                    "episode_count": len(episodes_data),
+                    "episodes": episodes_data
+                })
+            
+            return {
+                "show_title": show.title,
+                "total_seasons": len(seasons_data),
+                "seasons": seasons_data
+            }
+            
+        except NotFound:
+            logger.warning(f"Show not found with rating_key: {rating_key}")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting series episodes: {e}")
+            return None
+    
+    def _get_resolution_label(self, resolution: Optional[str], height: Optional[int]) -> Optional[str]:
+        """Convert resolution info to a user-friendly label."""
+        if resolution:
+            res = resolution.lower()
+            if res == '4k' or res == '2160':
+                return '4K'
+            elif res == '1080':
+                return '1080p'
+            elif res == '720':
+                return '720p'
+            elif res == '480' or res == 'sd':
+                return '480p'
+            return resolution.upper()
+        
+        if height:
+            if height >= 2160:
+                return '4K'
+            elif height >= 1080:
+                return '1080p'
+            elif height >= 720:
+                return '720p'
+            else:
+                return f'{height}p'
+        
+        return None
+    
     # =========================================================================
     # HEALTH CHECK
     # =========================================================================

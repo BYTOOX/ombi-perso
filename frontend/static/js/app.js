@@ -155,6 +155,10 @@ const api = {
 
     async getSeasonsAvailability(tmdbId) {
         return this.request(`/plex/availability/seasons/${tmdbId}`);
+    },
+
+    async getSeriesEpisodes(plexRatingKey) {
+        return this.request(`/plex/series/${plexRatingKey}/episodes`);
     }
 };
 
@@ -895,12 +899,42 @@ async function openMediaModal(media) {
                     details.push(`<span class="availability-detail"><i class="bi bi-hdd"></i> ${availability.file_size_gb} GB</span>`);
                 }
 
-                // For series: show available seasons
+                // For series: show available seasons with accordion
                 if (availability.seasons_available?.length > 0) {
                     const seasonsText = availability.seasons_available.length > 5
                         ? `Saisons 1-${availability.seasons_available.length}`
                         : `Saisons ${availability.seasons_available.join(', ')}`;
                     details.push(`<span class="availability-detail"><i class="bi bi-collection"></i> ${seasonsText}</span>`);
+
+                    // Show seasons accordion
+                    const seasonsAccordion = document.getElementById('seasonsAccordion');
+                    if (seasonsAccordion && availability.plex_rating_key) {
+                        seasonsAccordion.classList.remove('d-none');
+
+                        // Build accordion HTML
+                        let accordionHtml = availability.seasons_available.map(seasonNum => `
+                            <div class="season-accordion-item" data-season="${seasonNum}" data-rating-key="${availability.plex_rating_key}">
+                                <div class="season-accordion-header" onclick="toggleSeasonAccordion(this)">
+                                    <div class="season-accordion-title">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        <span>Saison ${seasonNum}</span>
+                                        <span class="season-episode-count"></span>
+                                    </div>
+                                    <i class="bi bi-chevron-down season-accordion-toggle"></i>
+                                </div>
+                                <div class="season-accordion-content">
+                                    <div class="episode-list">
+                                        <div class="episode-loading">
+                                            <span class="spinner-border spinner-border-sm text-primary"></span>
+                                            <span class="ms-2">Chargement...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+
+                        seasonsAccordion.innerHTML = accordionHtml;
+                    }
                 }
 
                 availabilityDetails.innerHTML = details.join('');
@@ -1397,6 +1431,93 @@ function expandSearchSection(type) {
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', initApp);
 
+// Cache for loaded episodes data
+let cachedSeriesEpisodes = {};
+
+/**
+ * Toggle season accordion and load episodes on first expand
+ */
+async function toggleSeasonAccordion(headerEl) {
+    const item = headerEl.closest('.season-accordion-item');
+    if (!item) return;
+
+    const ratingKey = item.dataset.ratingKey;
+    const seasonNum = parseInt(item.dataset.season, 10);
+    const isExpanded = item.classList.contains('expanded');
+
+    // Toggle expanded state
+    item.classList.toggle('expanded');
+
+    // If collapsing, just return
+    if (isExpanded) return;
+
+    const episodeList = item.querySelector('.episode-list');
+    const countEl = item.querySelector('.season-episode-count');
+
+    // Check if already loaded
+    if (item.dataset.loaded === 'true') return;
+
+    try {
+        // Fetch episodes if not cached
+        if (!cachedSeriesEpisodes[ratingKey]) {
+            const data = await api.getSeriesEpisodes(ratingKey);
+            cachedSeriesEpisodes[ratingKey] = data;
+        }
+
+        const seriesData = cachedSeriesEpisodes[ratingKey];
+        const seasonData = seriesData?.seasons?.find(s => s.season_number === seasonNum);
+
+        if (seasonData && seasonData.episodes) {
+            // Update episode count
+            if (countEl) {
+                countEl.textContent = `${seasonData.episode_count} épisodes`;
+            }
+
+            // Render episodes
+            episodeList.innerHTML = seasonData.episodes.map(ep => {
+                const badges = [];
+
+                // Resolution badge
+                if (ep.resolution) {
+                    const isUhd = ep.resolution === '4K' || ep.resolution === '2160p';
+                    badges.push(`<span class="episode-badge resolution ${isUhd ? 'uhd' : ''}">${ep.resolution}</span>`);
+                }
+
+                // Codec badge
+                if (ep.video_codec) {
+                    const codecLabel = ep.video_codec.toUpperCase().replace('H264', 'H.264').replace('HEVC', 'HEVC');
+                    badges.push(`<span class="episode-badge codec">${codecLabel}</span>`);
+                }
+
+                // Audio languages
+                if (ep.audio_languages?.length > 0) {
+                    const langs = ep.audio_languages.slice(0, 2).map(l => formatLanguage(l)).join(', ');
+                    badges.push(`<span class="episode-badge audio">${langs}</span>`);
+                }
+
+                return `
+                    <div class="episode-item">
+                        <div class="episode-info">
+                            <span class="episode-number">E${String(ep.episode_number).padStart(2, '0')}</span>
+                            <span class="episode-title">${ep.title}</span>
+                        </div>
+                        <div class="episode-badges">
+                            ${badges.join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            item.dataset.loaded = 'true';
+        } else {
+            episodeList.innerHTML = '<div class="episode-loading">Aucun épisode trouvé</div>';
+        }
+    } catch (error) {
+        console.error('Error loading episodes:', error);
+        episodeList.innerHTML = '<div class="episode-loading text-danger">Erreur de chargement</div>';
+    }
+}
+
 // Export for global access
 window.scrollRow = scrollRow;
 window.openMediaModal = openMediaModal;
@@ -1406,3 +1527,4 @@ window.openGalleryModal = openGalleryModal;
 window.expandSearchSection = expandSearchSection;
 window.toggleTile = toggleTile;
 window.loadCategoryContent = loadCategoryContent;
+window.toggleSeasonAccordion = toggleSeasonAccordion;

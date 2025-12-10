@@ -7,7 +7,6 @@ import logging
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-from functools import lru_cache
 
 from ..models.database import SessionLocal
 from ..models.system_settings import SystemSettings
@@ -295,7 +294,7 @@ class SettingsService:
             db.commit()
             db.refresh(settings)
             
-            logger.info(f"Rename settings updated")
+            logger.info("Rename settings updated")
             return self.get_rename_settings()
     
     def get_movie_format(self) -> str:
@@ -459,8 +458,6 @@ def init_rename_settings():
     Called during app startup.
     """
     from ..models.rename_settings import RenameSettings
-    
-    service = get_settings_service()
     
     with SessionLocal() as db:
         existing = db.query(RenameSettings).first()

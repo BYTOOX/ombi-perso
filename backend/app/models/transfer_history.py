@@ -1,9 +1,7 @@
 """
 Transfer History model for tracking file movements.
 """
-from datetime import datetime
 from enum import Enum
-from typing import Optional
 from sqlalchemy import Column, Integer, String, DateTime, Enum as SQLEnum, Float, Text, Boolean
 from sqlalchemy.sql import func
 
