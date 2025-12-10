@@ -4,8 +4,8 @@ All settings can be overridden via environment variables.
 """
 import json
 from functools import lru_cache
-from typing import Dict, Optional
-from pydantic import Field, field_validator
+from typing import Optional
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -60,15 +60,12 @@ class Settings(BaseSettings):
     
     # Paths
     download_path: str = Field(default="/downloads", description="Temporary download folder")
-    library_paths: Dict[str, str] = Field(
-        default={
-            "movie": "/media/Films",
-            "animated_movie": "/media/Films d'animation",
-            "series": "/media/Série TV",
-            "animated_series": "/media/Série Animée",
-            "anime": "/media/Animé (JAP)"
-        },
-        description="Library paths mapping (type -> path)"
+    # NOTE: library_paths is stored as Optional[str] to prevent pydantic-settings 
+    # from auto-parsing it as JSON (which fails on empty strings)
+    # Use the library_paths_dict property to get the actual dict
+    library_paths: Optional[str] = Field(
+        default=None,
+        description="Library paths as JSON string (managed via Admin Panel)"
     )
     
     # Notifications
@@ -79,44 +76,42 @@ class Settings(BaseSettings):
     seed_duration_hours: int = Field(default=24, description="Hours to seed before deletion")
     max_download_size_gb: int = Field(default=1000, description="Max total download size in GB")
     
-    @field_validator("library_paths", mode="before")
-    @classmethod
-    def parse_library_paths(cls, v):
-        """Parse library_paths from JSON string if needed.
-        
-        Returns default paths if value is empty/None (paths managed via Admin Panel).
-        """
-        # Default paths - used when not configured via env
-        default_paths = {
+    @property
+    def _default_library_paths(self) -> dict[str, str]:
+        """Default library paths."""
+        return {
             "movie": "/media/Films",
             "animated_movie": "/media/Films d'animation",
             "series": "/media/Série TV",
             "animated_series": "/media/Série Animée",
             "anime": "/media/Animé (JAP)"
         }
+    
+    @property
+    def library_paths_dict(self) -> dict[str, str]:
+        """Get library paths as a dictionary.
         
-        # Handle None or empty string
-        if v is None or v == "" or (isinstance(v, str) and v.strip() == ""):
-            return default_paths
+        Returns default paths if not configured or invalid JSON.
+        """
+        if not self.library_paths or self.library_paths.strip() == "":
+            return self._default_library_paths
         
-        # Parse JSON string
-        if isinstance(v, str):
-            try:
-                return json.loads(v)
-            except json.JSONDecodeError:
-                # Invalid JSON, return defaults
-                return default_paths
-        
-        return v
+        try:
+            parsed = json.loads(self.library_paths)
+            if isinstance(parsed, dict):
+                return parsed
+            return self._default_library_paths
+        except (json.JSONDecodeError, TypeError):
+            return self._default_library_paths
     
     def get_library_path(self, media_type: str) -> Optional[str]:
         """Get library path for a media type."""
-        return self.library_paths.get(media_type)
+        return self.library_paths_dict.get(media_type)
     
     @property
     def media_types(self) -> list[str]:
         """Get all configured media types."""
-        return list(self.library_paths.keys())
+        return list(self.library_paths_dict.keys())
 
 
 @lru_cache
