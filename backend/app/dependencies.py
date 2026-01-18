@@ -15,6 +15,7 @@ All services are created per-request with proper cleanup in finally blocks.
 from typing import AsyncGenerator, Generator
 from functools import lru_cache
 
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
