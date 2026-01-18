@@ -1,24 +1,26 @@
 """
 Media request endpoints.
 """
-import asyncio
 import logging
 from datetime import date
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config import get_settings
-from ...models import get_db, User, MediaRequest, Download
-from ...models.request import RequestStatus, MediaType
+from ...dependencies import (
+    get_async_db,
+    get_plex_manager_service,
+    get_notification_service,
+)
+from ...models.user import User
+from ...models.request import MediaRequest, RequestStatus, MediaType
+from ...models.download import Download
 from ...schemas.request import (
     RequestCreate, RequestResponse, RequestUpdate,
     RequestListResponse, UserRequestStats
 )
-from ...services.notifications import get_notification_service
-from ...services.plex_manager import get_plex_manager_service
-from ...services.pipeline import process_request_async
 from .auth import get_current_user, get_current_admin
 
 logger = logging.getLogger(__name__)
@@ -27,29 +29,13 @@ router = APIRouter(prefix="/requests", tags=["Requests"])
 settings = get_settings()
 
 
-def run_async_in_background(coro):
-    """Run async coroutine in background."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(coro)
-        else:
-            loop.run_until_complete(coro)
-    except RuntimeError:
-        asyncio.run(coro)
-
-
-async def process_request_background(request_id: int):
-    """Background task to process a media request through the pipeline."""
-    await process_request_async(request_id)
-
-
 @router.post("", response_model=RequestResponse, status_code=201)
 async def create_request(
     request_data: RequestCreate,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db),
+    plex_service = Depends(get_plex_manager_service),
+    notification_service = Depends(get_notification_service),
 ):
     """
     Créer une nouvelle demande de média.
@@ -85,19 +71,18 @@ async def create_request(
         )
     
     # Check Plex availability
-    plex_service = get_plex_manager_service()
     plex_check = plex_service.check_exists(
         title=request_data.title,
         year=request_data.year,
         media_type=request_data.media_type.value
     )
-    
+
     if plex_check.get("exists"):
         raise HTTPException(
             status_code=400,
             detail=f"Ce média est déjà disponible sur Plex: {plex_check.get('plex_title')}"
         )
-    
+
     # Create request
     media_request = MediaRequest(
         user_id=current_user.id,
@@ -113,26 +98,30 @@ async def create_request(
         seasons_requested=request_data.seasons_requested,
         status=RequestStatus.PENDING
     )
-    
+
     db.add(media_request)
-    
+
     # Increment user's daily count
     current_user.increment_request_count()
-    
+
     await db.commit()
     await db.refresh(media_request)
-    
+
     # Send notification
-    notification_service = get_notification_service()
     await notification_service.notify_request_created(
         title=media_request.title,
         media_type=media_request.media_type.value,
         username=current_user.username,
         poster_url=media_request.poster_url
     )
-    
-    # Start background processing
-    background_tasks.add_task(process_request_background, media_request.id)
+
+    # Queue Celery task for background processing
+    from ...workers.request_worker import process_request_task
+    task = process_request_task.delay(media_request.id)
+
+    # Store task ID for status tracking
+    media_request.celery_task_id = task.id
+    await db.commit()
     
     return RequestResponse(
         id=media_request.id,
@@ -163,7 +152,7 @@ async def list_requests(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Lister les demandes.
@@ -234,7 +223,7 @@ async def list_requests(
 @router.get("/me")
 async def get_my_requests(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Obtenir les demandes de l'utilisateur courant.
@@ -268,7 +257,7 @@ async def get_my_requests(
 @router.get("/stats", response_model=UserRequestStats)
 async def get_my_stats(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Obtenir les statistiques de demandes de l'utilisateur courant."""
     # Total requests
@@ -305,7 +294,7 @@ async def get_my_stats(
 async def get_request(
     request_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Obtenir les détails d'une demande."""
     result = await db.execute(
@@ -350,7 +339,7 @@ async def get_request(
 async def delete_request(
     request_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Supprimer ou annuler une demande.
@@ -409,7 +398,7 @@ async def delete_request(
 async def approve_request(
     request_id: int,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Approuver une demande en attente de validation (admin uniquement)."""
     result = await db.execute(
@@ -440,7 +429,7 @@ async def update_request(
     request_id: int,
     update_data: RequestUpdate,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Mettre à jour une demande (admin uniquement)."""
     result = await db.execute(

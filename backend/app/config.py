@@ -25,7 +25,10 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False, description="Debug mode")
     
     # Database
-    database_url: str = Field(default="sqlite:///./data/kiosk.db", description="Database URL")
+    database_url: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/plex_kiosk_dev",
+        description="Database URL (PostgreSQL recommended, SQLite for dev: sqlite+aiosqlite:///./data/kiosk.db)"
+    )
     
     # Redis
     redis_url: str = Field(default="redis://localhost:6379/0", description="Redis URL")
@@ -70,7 +73,17 @@ class Settings(BaseSettings):
     
     # Notifications
     discord_webhook_url: Optional[str] = Field(default=None, description="Discord webhook URL")
-    
+
+    # CORS (Security)
+    frontend_url: Optional[str] = Field(
+        default=None,
+        description="Frontend URL for production CORS (e.g., https://plex-kiosk.yourdomain.com)"
+    )
+    cors_origins: Optional[str] = Field(
+        default=None,
+        description="Comma-separated additional CORS origins (e.g., https://app.yourdomain.com,https://admin.yourdomain.com)"
+    )
+
     # Limits
     max_requests_per_day: int = Field(default=10, description="Max requests per user per day")
     seed_duration_hours: int = Field(default=24, description="Hours to seed before deletion")

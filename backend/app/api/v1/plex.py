@@ -7,10 +7,14 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel
 
-from ...services.plex_cache_service import get_plex_cache_service, PlexCacheService
-from ...services.plex_manager import get_plex_manager_service
-from ...services.notifications import NotificationService, get_notification_service
-from ...models import User
+from ...dependencies import (
+    get_plex_cache_service,
+    get_plex_manager_service,
+    get_notification_service
+)
+from ...services.plex_cache_service import PlexCacheService
+from ...services.notifications import NotificationService
+from ...models.user import User
 from .auth import get_current_user, get_current_admin
 
 logger = logging.getLogger(__name__)

@@ -108,13 +108,61 @@ app = FastAPI(
     redoc_url="/api/redoc" if settings.debug else None
 )
 
-# CORS middleware
+# =============================================================================
+# CORS Configuration (Security)
+# =============================================================================
+
+# Build allowed origins list based on environment
+allowed_origins = []
+
+if settings.debug:
+    # Development: Allow localhost on various ports
+    allowed_origins = [
+        "http://localhost:8765",      # Backend dev
+        "http://localhost:5173",      # Vite dev server
+        "http://localhost:3000",      # Alternative dev port
+        "http://127.0.0.1:8765",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+    ]
+    logger.info("CORS: Development mode - allowing localhost origins")
+else:
+    # Production: Only configured domains
+    if settings.frontend_url:
+        allowed_origins.append(settings.frontend_url)
+
+    if settings.cors_origins:
+        # Parse comma-separated origins
+        additional_origins = [
+            origin.strip()
+            for origin in settings.cors_origins.split(",")
+            if origin.strip()
+        ]
+        allowed_origins.extend(additional_origins)
+
+    if not allowed_origins:
+        logger.warning(
+            "CORS: Production mode but no origins configured! "
+            "Set FRONTEND_URL or CORS_ORIGINS in environment."
+        )
+
+logger.info(f"CORS allowed origins: {allowed_origins}")
+
+# Add CORS middleware with secure configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure for production
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "Accept",
+        "Accept-Language",
+        "Content-Language",
+    ],
+    expose_headers=["Content-Range", "X-Content-Range"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 # API Routes

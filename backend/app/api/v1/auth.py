@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 
 from ...config import get_settings
-from ...models import get_db, User
-from ...models.user import UserRole, UserStatus
+from ...dependencies import get_async_db
+from ...models.user import User, UserRole, UserStatus
 from ...schemas.user import (
     UserCreate, UserResponse, UserUpdate,
     Token, PlexAuth, PlexLink, RegistrationResponse
@@ -56,7 +56,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ) -> User:
     """Get current user from JWT token."""
     credentials_exception = HTTPException(
@@ -112,7 +112,7 @@ async def get_current_admin(user: User = Depends(get_current_user)) -> User:
 @router.post("/register", response_model=RegistrationResponse)
 async def register(
     user_data: UserCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Register a new user.
@@ -182,7 +182,7 @@ async def register(
 @router.post("/login", response_model=Token)
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Login with username and password."""
     result = await db.execute(
@@ -233,7 +233,7 @@ async def login(
 @router.post("/plex")
 async def plex_auth(
     plex_data: PlexAuth,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Authenticate via Plex SSO.
@@ -340,7 +340,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
 async def update_me(
     update_data: UserUpdate,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Update current user info."""
     if update_data.email is not None:
@@ -355,7 +355,7 @@ async def update_me(
 @router.get("/stats")
 async def get_user_stats(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Get current user request statistics.
@@ -402,7 +402,7 @@ async def get_user_stats(
 async def link_plex_account(
     plex_data: PlexLink,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Link Plex account to existing user.

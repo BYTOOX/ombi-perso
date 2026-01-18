@@ -9,7 +9,7 @@ from sqlalchemy import select, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
-from ...models import get_db
+from ...dependencies import get_async_db
 from ...models.user import User
 from ...models.transfer_history import TransferHistory, TransferStatus
 from .auth import get_current_admin
@@ -73,7 +73,7 @@ async def get_transfers(
     media_type: Optional[str] = Query(None, description="Filter by media type"),
     hours: int = Query(24, description="Get transfers from last N hours"),
     limit: int = Query(50, description="Max results"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_admin)
 ):
     """Get transfer history with optional filters."""
@@ -109,7 +109,7 @@ async def get_transfers(
 
 @router.get("/stats")
 async def get_transfer_stats(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_admin)
 ):
     """Get transfer statistics."""
@@ -169,7 +169,7 @@ async def get_transfer_stats(
 
 @router.get("/active")
 async def get_active_transfers(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_admin)
 ):
     """Get currently active (in_progress or pending) transfers."""
@@ -190,7 +190,7 @@ async def get_active_transfers(
 async def get_friendly_logs(
     hours: int = Query(24, description="Get logs from last N hours"),
     limit: int = Query(20, description="Max logs to return"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_admin)
 ):
     """Get user-friendly activity logs."""
@@ -219,7 +219,7 @@ async def get_friendly_logs(
 @router.post("/{transfer_id}/retry")
 async def retry_transfer(
     transfer_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_admin)
 ):
     """Retry a failed transfer."""
@@ -258,7 +258,7 @@ async def force_transfer(
     original_path: str,
     media_type: str,
     media_title: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_admin)
 ):
     """Force a manual transfer."""
@@ -293,7 +293,7 @@ async def force_transfer(
 @router.delete("/{transfer_id}")
 async def cancel_transfer(
     transfer_id: int,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_admin)
 ):
     """Cancel a pending transfer."""

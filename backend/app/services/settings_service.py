@@ -1,6 +1,11 @@
 """
 Settings service for managing system configuration stored in database.
 Handles path settings (download_path, library_paths) that can be modified from admin panel.
+
+REFACTORED for Phase 0:
+- Removed singleton pattern (now uses dependency injection)
+- Made fully async with AsyncSession
+- Accepts AsyncSession via constructor
 """
 import json
 import logging
@@ -8,7 +13,9 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
-from ..models.database import SessionLocal
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..models.system_settings import SystemSettings
 
 logger = logging.getLogger(__name__)
@@ -29,78 +36,85 @@ class SettingsService:
     """
     Service for managing system settings stored in database.
     Provides methods to get/set path configurations.
+
+    ASYNC: All database operations are now async.
     """
+
+    def __init__(self, db: AsyncSession):
+        """
+        Initialize with injected database session.
+
+        Args:
+            db: AsyncSession instance for database operations
+        """
+        self.db = db
     
-    # Cache for settings to avoid DB queries on every call
-    _cache: Dict[str, Any] = {}
-    _cache_valid: bool = False
+    async def _get_setting(self, key: str) -> Optional[str]:
+        """Get a setting value from database (async)."""
+        result = await self.db.execute(
+            select(SystemSettings).where(SystemSettings.key == key)
+        )
+        setting = result.scalar_one_or_none()
+        return setting.value if setting else None
+
+    async def _set_setting(self, key: str, value: str):
+        """Set a setting value in database (async)."""
+        result = await self.db.execute(
+            select(SystemSettings).where(SystemSettings.key == key)
+        )
+        setting = result.scalar_one_or_none()
+
+        if setting:
+            setting.value = value
+        else:
+            setting = SystemSettings(key=key, value=value)
+            self.db.add(setting)
+
+        await self.db.flush()  # Flush changes (commit handled by dependency)
     
-    def __init__(self):
-        pass
-    
-    def _get_setting(self, key: str) -> Optional[str]:
-        """Get a setting value from database."""
-        with SessionLocal() as db:
-            setting = db.query(SystemSettings).filter(SystemSettings.key == key).first()
-            return setting.value if setting else None
-    
-    def _set_setting(self, key: str, value: str):
-        """Set a setting value in database."""
-        with SessionLocal() as db:
-            setting = db.query(SystemSettings).filter(SystemSettings.key == key).first()
-            if setting:
-                setting.value = value
-            else:
-                setting = SystemSettings(key=key, value=value)
-                db.add(setting)
-            db.commit()
-        
-        # Invalidate cache
-        self._cache_valid = False
-    
-    def get_download_path(self) -> str:
-        """Get the download path for temporary torrent downloads."""
-        value = self._get_setting("download_path")
+    async def get_download_path(self) -> str:
+        """Get the download path for temporary torrent downloads (async)."""
+        value = await self._get_setting("download_path")
         return value if value else DEFAULT_DOWNLOAD_PATH
-    
-    def set_download_path(self, path: str) -> bool:
-        """Set the download path."""
-        self._set_setting("download_path", path)
+
+    async def set_download_path(self, path: str) -> bool:
+        """Set the download path (async)."""
+        await self._set_setting("download_path", path)
         logger.info(f"Download path updated to: {path}")
         return True
-    
-    def get_library_paths(self) -> Dict[str, str]:
-        """Get library paths mapping (media_type -> path)."""
-        value = self._get_setting("library_paths")
+
+    async def get_library_paths(self) -> Dict[str, str]:
+        """Get library paths mapping (media_type -> path) (async)."""
+        value = await self._get_setting("library_paths")
         if value:
             try:
                 return json.loads(value)
             except json.JSONDecodeError:
                 logger.error("Failed to parse library_paths from DB")
         return DEFAULT_LIBRARY_PATHS.copy()
-    
-    def set_library_paths(self, paths: Dict[str, str]) -> bool:
-        """Set library paths mapping."""
-        self._set_setting("library_paths", json.dumps(paths, ensure_ascii=False))
+
+    async def set_library_paths(self, paths: Dict[str, str]) -> bool:
+        """Set library paths mapping (async)."""
+        await self._set_setting("library_paths", json.dumps(paths, ensure_ascii=False))
         logger.info(f"Library paths updated: {paths}")
         return True
-    
-    def get_library_path(self, media_type: str) -> Optional[str]:
-        """Get library path for a specific media type."""
-        paths = self.get_library_paths()
+
+    async def get_library_path(self, media_type: str) -> Optional[str]:
+        """Get library path for a specific media type (async)."""
+        paths = await self.get_library_paths()
         return paths.get(media_type)
     
-    def get_all_path_settings(self) -> Dict[str, Any]:
+    async def get_all_path_settings(self) -> Dict[str, Any]:
         """
-        Get all path settings with validation info.
+        Get all path settings with validation info (async).
         Returns structure suitable for admin panel display.
         """
-        download_path = self.get_download_path()
-        library_paths = self.get_library_paths()
-        
+        download_path = await self.get_download_path()
+        library_paths = await self.get_library_paths()
+
         # Validate download path
         download_info = self._validate_path(download_path)
-        
+
         # Validate each library path
         library_info = {}
         for media_type, path in library_paths.items():
@@ -108,7 +122,7 @@ class SettingsService:
                 "path": path,
                 **self._validate_path(path)
             }
-        
+
         return {
             "download_path": {
                 "path": download_path,
@@ -116,23 +130,23 @@ class SettingsService:
             },
             "library_paths": library_info
         }
-    
-    def update_all_path_settings(
-        self, 
-        download_path: str, 
+
+    async def update_all_path_settings(
+        self,
+        download_path: str,
         library_paths: Dict[str, str]
     ) -> Dict[str, Any]:
         """
-        Update all path settings at once.
+        Update all path settings at once (async).
         Returns validation results.
         """
         errors = []
-        
+
         # Validate download path
         if not download_path:
             errors.append("Download path is required")
         else:
-            self.set_download_path(download_path)
+            await self.set_download_path(download_path)
         
         # Validate library paths
         if not library_paths:
@@ -145,12 +159,12 @@ class SettingsService:
                     errors.append(f"Missing path for media type: {media_type}")
             
             if not errors:
-                self.set_library_paths(library_paths)
-        
+                await self.set_library_paths(library_paths)
+
         if errors:
             return {"success": False, "errors": errors}
-        
-        return {"success": True, "settings": self.get_all_path_settings()}
+
+        return {"success": True, "settings": await self.get_all_path_settings()}
     
     def _validate_path(self, path: str) -> Dict[str, Any]:
         """Validate a path and return status info."""
@@ -419,16 +433,11 @@ class SettingsService:
         return None
 
 
-# Singleton instance
-_settings_service: Optional[SettingsService] = None
-
-
-def get_settings_service() -> SettingsService:
-    """Get settings service instance."""
-    global _settings_service
-    if _settings_service is None:
-        _settings_service = SettingsService()
-    return _settings_service
+# REMOVED: Singleton pattern replaced by dependency injection
+# Use dependencies.get_settings_service() instead
+#
+# NOTE: Some methods below still use SessionLocal() directly and need async conversion.
+# These will be updated as they're used with the new DI pattern.
 
 
 def init_default_settings():

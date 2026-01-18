@@ -21,7 +21,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:?Secret key required}
       - DEBUG=${DEBUG:-false}
       # Database
-      - DATABASE_URL=sqlite:///./data/kiosk.db
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/plex_kiosk
       # Redis
       - REDIS_URL=redis://redis:6379/0
       # FlareSolverr
@@ -54,12 +54,37 @@ services:
       - ${DOWNLOAD_PATH:-./downloads}:/downloads # Temporary downloads
       - ${MEDIA_PATH:-./media}:/media # Media library (read-only for Plex)
     depends_on:
-      - redis
-      - flaresolverr
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      flaresolverr:
+        condition: service_started
     networks:
       - plex-kiosk-network
     extra_hosts:
       - "host.docker.internal:host-gateway" # Access host Ollama
+
+  # ===========================================================================
+  # POSTGRESQL - Primary Database
+  # ===========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: plex-kiosk-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: plex_kiosk
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - plex-kiosk-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ===========================================================================
   # REDIS - Cache & Queue
@@ -78,6 +103,107 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ===========================================================================
+  # CELERY WORKER - Background Task Processing
+  # ===========================================================================
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: plex-kiosk-celery-worker
+    restart: unless-stopped
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      # Database
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/plex_kiosk
+      # Redis (Celery broker + backend)
+      - REDIS_URL=redis://redis:6379/0
+      # External services (same as main app)
+      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:14b}
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - YGG_USERNAME=${YGG_USERNAME}
+      - YGG_PASSWORD=${YGG_PASSWORD}
+      - YGG_PASSKEY=${YGG_PASSKEY}
+      - PLEX_URL=${PLEX_URL}
+      - PLEX_TOKEN=${PLEX_TOKEN}
+      - QBITTORRENT_URL=${QBITTORRENT_URL}
+      - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME:-admin}
+      - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      # Settings
+      - MAX_REQUESTS_PER_DAY=${MAX_REQUESTS_PER_DAY:-10}
+      - SEED_DURATION_HOURS=${SEED_DURATION_HOURS:-24}
+      - MAX_DOWNLOAD_SIZE_GB=${MAX_DOWNLOAD_SIZE_GB:-1000}
+    volumes:
+      - ./data:/app/data
+      - ${DOWNLOAD_PATH:-./downloads}:/downloads
+      - ${MEDIA_PATH:-./media}:/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - plex-kiosk-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ===========================================================================
+  # CELERY BEAT - Scheduled Tasks
+  # ===========================================================================
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: plex-kiosk-celery-beat
+    restart: unless-stopped
+    command: celery -A app.celery_app beat --loglevel=info
+    environment:
+      # Database
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/plex_kiosk
+      # Redis
+      - REDIS_URL=redis://redis:6379/0
+      # External services (needed for scheduled tasks)
+      - PLEX_URL=${PLEX_URL}
+      - PLEX_TOKEN=${PLEX_TOKEN}
+      - QBITTORRENT_URL=${QBITTORRENT_URL}
+      - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME:-admin}
+      - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD}
+      # Settings
+      - SEED_DURATION_HOURS=${SEED_DURATION_HOURS:-24}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - plex-kiosk-network
+
+  # ===========================================================================
+  # FLOWER - Celery Monitoring UI (dev only)
+  # ===========================================================================
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: plex-kiosk-flower
+    restart: unless-stopped
+    command: celery -A app.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    depends_on:
+      - redis
+      - celery-worker
+    networks:
+      - plex-kiosk-network
+    profiles:
+      - dev  # Only start with: docker-compose --profile dev up
 
   # ===========================================================================
   # FLARESOLVERR - Cloudflare Bypass
@@ -105,4 +231,5 @@ networks:
     driver: bridge
 
 volumes:
+  postgres-data:
   redis-data:

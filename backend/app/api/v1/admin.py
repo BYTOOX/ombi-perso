@@ -7,15 +7,18 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from argon2 import PasswordHasher
 
-from ...models import get_db, User, MediaRequest, Download
-from ...models.user import UserRole, UserStatus
-from ...models.request import RequestStatus
-from ...models.download import DownloadStatus
+from ...dependencies import (
+    get_async_db,
+    get_downloader_service,
+    get_plex_manager_service,
+    get_ai_agent_service,
+    get_settings_service
+)
+from ...models.user import User, UserRole, UserStatus
+from ...models.request import MediaRequest, RequestStatus
+from ...models.download import Download, DownloadStatus
 from ...schemas.user import UserResponse, UserUpdate, AdminUserCreate
 from ...schemas.download import DownloadStats
-from ...services.downloader import get_downloader_service
-from ...services.plex_manager import get_plex_manager_service
-from ...services.ai_agent import get_ai_agent_service
 from ...config import get_settings
 from ...logging_config import InMemoryLogHandler, get_available_modules, LOG_MODULES
 from .auth import get_current_admin
@@ -33,7 +36,7 @@ ph = PasswordHasher()
 async def list_users(
     status: Optional[UserStatus] = None,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Lister tous les utilisateurs. Optionally filter by status."""
     query = select(User).order_by(User.created_at.desc())
@@ -47,7 +50,7 @@ async def list_users(
 @router.get("/users/pending", response_model=List[UserResponse])
 async def list_pending_users(
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Lister les utilisateurs en attente d'approbation."""
     result = await db.execute(
@@ -61,7 +64,7 @@ async def list_pending_users(
 async def create_user(
     user_data: AdminUserCreate,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Créer un nouvel utilisateur (admin only). User is created as ACTIVE."""
     # Check if username exists
@@ -109,7 +112,7 @@ async def create_user(
 async def get_user(
     user_id: int,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Obtenir les détails d'un utilisateur."""
     result = await db.execute(select(User).where(User.id == user_id))
@@ -126,7 +129,7 @@ async def update_user(
     user_id: int,
     update_data: UserUpdate,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Mettre à jour un utilisateur."""
     result = await db.execute(select(User).where(User.id == user_id))
@@ -161,7 +164,7 @@ async def update_user(
 async def approve_user(
     user_id: int,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Approuver un utilisateur en attente."""
     result = await db.execute(select(User).where(User.id == user_id))
@@ -189,7 +192,7 @@ async def approve_user(
 async def reject_user(
     user_id: int,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Rejeter/désactiver un utilisateur."""
     result = await db.execute(select(User).where(User.id == user_id))
@@ -215,7 +218,7 @@ async def reject_user(
 async def delete_user(
     user_id: int,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Supprimer un utilisateur."""
     if user_id == current_user.id:
@@ -243,7 +246,7 @@ async def delete_user(
 @router.get("/stats")
 async def get_stats(
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Obtenir les statistiques globales.
@@ -310,7 +313,7 @@ async def get_stats(
 @router.get("/downloads", response_model=DownloadStats)
 async def get_download_stats(
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Obtenir les statistiques de téléchargement."""
     # From database

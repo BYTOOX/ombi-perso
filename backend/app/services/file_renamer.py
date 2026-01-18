@@ -1,18 +1,20 @@
 """
 Enhanced File Renaming Service for Plex/Filebot compatible naming.
 Integrates with TitleResolverService and configurable settings.
+
+REFACTORED for Phase 0:
+- Removed singleton pattern (now uses dependency injection)
+- Made fully async (removed blocking asyncio.get_event_loop().run_until_complete())
+- Accepts SettingsService and TitleResolverService via constructor
 """
 import os
 import re
 import shutil
 import logging
-import asyncio
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from ..models.request import MediaType
-from .settings_service import get_settings_service
-from .title_resolver import get_title_resolver_service
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +28,13 @@ class FileRenamerService:
     - Handling season/episode detection
     - AI fallback for ambiguous cases
     """
-    
+
     # Video file extensions
     VIDEO_EXTENSIONS = {'.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v'}
-    
+
     # Subtitle extensions
     SUBTITLE_EXTENSIONS = {'.srt', '.ass', '.ssa', '.sub', '.idx', '.vtt'}
-    
+
     # Audio priority patterns for torrent selection (MULTI > VF > VOSTFR)
     AUDIO_PRIORITY = [
         (r'\b(MULTI|TRUEFRENCH)\b', 100),  # Multi-language with French
@@ -40,12 +42,19 @@ class FileRenamerService:
         (r'\b(VOSTFR|SUBFRENCH)\b', 60),   # French subtitles
         (r'\b(VO|ENGLISH)\b', 40),          # Original/English only
     ]
+
+    def __init__(self, settings_service, title_resolver):
+        """
+        Initialize with injected dependencies.
+
+        Args:
+            settings_service: SettingsService instance for DB settings
+            title_resolver: TitleResolverService instance for TMDB/TVDB resolution
+        """
+        self._settings_service = settings_service
+        self._title_resolver = title_resolver
     
-    def __init__(self):
-        self._settings_service = get_settings_service()
-        self._title_resolver = get_title_resolver_service()
-    
-    def process_download(
+    async def process_download(
         self,
         download_path: str,
         media_type: MediaType,
@@ -57,12 +66,13 @@ class FileRenamerService:
         tvdb_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Process a completed download:
+        Process a completed download (ASYNC).
+
         1. Detect video files
         2. Resolve title via TMDB/TVDB if needed
         3. Apply configurable naming template
         4. Move to appropriate library
-        
+
         Returns:
             Dict with 'success', 'final_path', 'files_processed'
         """
@@ -86,8 +96,8 @@ class FileRenamerService:
             if not video_files:
                 return {"success": False, "error": "No video files found"}
             
-            # Resolve title if not provided with IDs
-            resolved_info = self._resolve_title(
+            # Resolve title if not provided with IDs (now async)
+            resolved_info = await self._resolve_title(
                 media_title, year, media_type, tmdb_id, tvdb_id
             )
             
@@ -131,7 +141,7 @@ class FileRenamerService:
             logger.error(f"Error processing download: {e}")
             return {"success": False, "error": str(e)}
     
-    def _resolve_title(
+    async def _resolve_title(
         self,
         title: str,
         year: Optional[int],
@@ -139,8 +149,12 @@ class FileRenamerService:
         tmdb_id: Optional[int] = None,
         tvdb_id: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Resolve title using TitleResolver or return provided info."""
-        
+        """
+        Resolve title using TitleResolver or return provided info.
+
+        FIXED: Now async, no more blocking event loop!
+        """
+
         # If we already have IDs, just build the info dict
         if tmdb_id or tvdb_id:
             return {
@@ -151,27 +165,21 @@ class FileRenamerService:
                 "source": "provided",
                 "confidence": 1.0
             }
-        
-        # Try to resolve via TMDB/TVDB
+
+        # Try to resolve via TMDB/TVDB (now properly async)
         try:
             if media_type == MediaType.MOVIE or media_type == MediaType.ANIMATED_MOVIE:
-                resolved = asyncio.get_event_loop().run_until_complete(
-                    self._title_resolver.resolve_title(title, "movie", year, tmdb_id)
-                )
+                resolved = await self._title_resolver.resolve_title(title, "movie", year, tmdb_id)
             elif media_type == MediaType.ANIME or media_type == MediaType.ANIME_MOVIE:
-                resolved = asyncio.get_event_loop().run_until_complete(
-                    self._title_resolver.resolve_title(title, "anime", year, tmdb_id, tvdb_id)
-                )
+                resolved = await self._title_resolver.resolve_title(title, "anime", year, tmdb_id, tvdb_id)
             else:
-                resolved = asyncio.get_event_loop().run_until_complete(
-                    self._title_resolver.resolve_title(title, "series", year, tmdb_id, tvdb_id)
-                )
-            
+                resolved = await self._title_resolver.resolve_title(title, "series", year, tmdb_id, tvdb_id)
+
             if resolved.get("confidence", 0) > 0.5:
                 return resolved
         except Exception as e:
             logger.warning(f"Title resolution failed: {e}")
-        
+
         # Fallback to provided title
         return {
             "title": title,
@@ -481,6 +489,5 @@ class FileRenamerService:
         return results
 
 
-def get_file_renamer_service() -> FileRenamerService:
-    """Get file renamer service instance."""
-    return FileRenamerService()
+# REMOVED: Singleton pattern replaced by dependency injection
+# Use dependencies.get_file_renamer_service() instead

@@ -60,7 +60,10 @@ class MediaRequest(Base):
     # Status
     status: Mapped[RequestStatus] = mapped_column(SQLEnum(RequestStatus), default=RequestStatus.PENDING)
     status_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    
+
+    # Celery task tracking
+    celery_task_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+
     # AI analysis result (stored as JSON)
     ai_analysis: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     

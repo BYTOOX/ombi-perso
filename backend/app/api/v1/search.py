@@ -4,12 +4,15 @@ Search endpoints for media discovery.
 from typing import Optional, List
 from fastapi import APIRouter, Depends, Query, HTTPException
 
-from ...services.media_search import MediaSearchService, get_media_search_service
-
-from ...services.plex_cache_service import PlexCacheService, get_plex_cache_service
+from ...dependencies import (
+    get_media_search_service,
+    get_plex_cache_service
+)
+from ...services.media_search import MediaSearchService
+from ...services.plex_cache_service import PlexCacheService
 from ...schemas.media import MediaSearchResult, MediaDetails, MediaType
 from .auth import get_current_user
-from ...models import User
+from ...models.user import User
 from ...config import get_settings
 
 router = APIRouter(prefix="/search", tags=["Search"])
