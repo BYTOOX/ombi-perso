@@ -265,7 +265,7 @@ async def get_plex_cache_service(
     """
     from .services.plex_cache_service import PlexCacheService
 
-    return PlexCacheService(db, plex_manager)
+    return PlexCacheService()  # No arguments needed - uses get_settings() and get_plex_manager_service() internally
 
 
 async def get_pipeline_service(
