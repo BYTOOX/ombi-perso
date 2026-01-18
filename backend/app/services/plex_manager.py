@@ -6,8 +6,7 @@ from typing import Optional, List, Dict, Any
 from plexapi.server import PlexServer
 from plexapi.exceptions import NotFound, Unauthorized
 
-from ..config import get_settings
-from .settings_service import get_settings_service
+from ..config import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +19,13 @@ class PlexManagerService:
     - User notifications
     - Media availability checks
     """
-    
-    def __init__(self):
-        self.settings = get_settings()
-        self._settings_service = get_settings_service()
+
+    def __init__(self, settings: Settings, settings_service):
+        self.settings = settings
+        self._settings_service = settings_service
         self._server: Optional[PlexServer] = None
         self._connection_failed = False  # Cache connection failures
-    
+
     def _is_configured(self) -> bool:
         """Check if Plex is properly configured (not placeholder values)."""
         url = self.settings.plex_url
@@ -41,371 +40,349 @@ class PlexManagerService:
             if placeholder in url_lower or placeholder in token_lower:
                 return False
         return True
-    
+
     @property
     def server(self) -> Optional[PlexServer]:
         """Get Plex server connection."""
         # Skip if already failed or not configured
         if self._connection_failed or not self._is_configured():
             return None
-            
-        if self._server is None and self.settings.plex_url and self.settings.plex_token:
+
+        # Return cached server if available
+        if self._server:
             try:
-                self._server = PlexServer(
-                    self.settings.plex_url,
-                    self.settings.plex_token,
-                    timeout=5  # 5 second timeout
-                )
-                logger.info(f"Connected to Plex: {self._server.friendlyName}")
+                # Test connection
+                _ = self._server.library
+                return self._server
             except Exception as e:
-                logger.error(f"Failed to connect to Plex: {e}")
-                self._connection_failed = True  # Don't retry on subsequent calls
-                return None
-        return self._server
-    
-    # =========================================================================
-    # LIBRARY MANAGEMENT
-    # =========================================================================
-    
+                logger.debug(f"Cached Plex connection failed: {e}")
+                self._server = None
+
+        # Create new connection
+        try:
+            self._server = PlexServer(
+                self.settings.plex_url,
+                self.settings.plex_token,
+                timeout=10
+            )
+            self._connection_failed = False
+            return self._server
+        except Unauthorized:
+            logger.error("Plex: Unauthorized - check your token")
+            self._connection_failed = True
+            return None
+        except Exception as e:
+            logger.error(f"Plex: Failed to connect - {e}")
+            self._connection_failed = True
+            return None
+
     def get_libraries(self) -> List[Dict[str, Any]]:
-        """Get list of Plex libraries."""
+        """Obtenir la liste de toutes les librairies Plex."""
         if not self.server:
             return []
-        
-        return [
-            {
-                "key": lib.key,
-                "title": lib.title,
-                "type": lib.type,
-                "locations": lib.locations
-            }
-            for lib in self.server.library.sections()
-        ]
-    
-    def get_library_by_type(self, media_type: str) -> Optional[Any]:
-        """
-        Get the appropriate library for a media type.
-        Uses the configured library paths mapping from database.
-        """
-        if not self.server:
-            return None
-        
-        target_path = self._settings_service.get_library_path(media_type)
-        if not target_path:
-            logger.warning(f"No library path configured for type: {media_type}")
-            return None
-        
-        # Find library that contains this path
-        for lib in self.server.library.sections():
-            if target_path in lib.locations:
-                return lib
-        
-        logger.warning(f"No library found for path: {target_path}")
-        return None
-    
+
+        try:
+            libs = []
+            for section in self.server.library.sections():
+                libs.append({
+                    "key": section.key,
+                    "title": section.title,
+                    "type": section.type,  # movie, show, artist, photo
+                    "uuid": section.uuid
+                })
+            return libs
+        except Exception as e:
+            logger.error(f"Failed to get libraries: {e}")
+            return []
+
     def scan_library(self, library_key: Optional[str] = None) -> bool:
         """
-        Trigger a library scan.
-        If library_key is None, scans all libraries.
+        Déclencher un scan de librairie Plex.
+
+        Args:
+            library_key: Si spécifié, scan uniquement cette librairie
         """
         if not self.server:
+            logger.warning("Plex: Not connected, cannot scan library")
             return False
-        
+
         try:
             if library_key:
-                library = self.server.library.sectionByID(library_key)
-                library.update()
-                logger.info(f"Scanning library: {library.title}")
+                # Scan specific library
+                section = self.server.library.sectionByID(library_key)
+                section.update()
+                logger.info(f"Plex: Scanning library '{section.title}'")
             else:
-                self.server.library.update()
-                logger.info("Scanning all libraries")
+                # Scan all libraries
+                for section in self.server.library.sections():
+                    section.update()
+                logger.info("Plex: Scanning all libraries")
             return True
         except Exception as e:
-            logger.error(f"Library scan error: {e}")
+            logger.error(f"Plex: Failed to trigger scan - {e}")
             return False
-    
-    def scan_path(self, path: str) -> bool:
-        """Scan a specific path in the library."""
-        if not self.server:
-            return False
-        
-        try:
-            # Find the library containing this path
-            for lib in self.server.library.sections():
-                for location in lib.locations:
-                    if path.startswith(location):
-                        lib.update(path)
-                        logger.info(f"Scanning path: {path}")
-                        return True
-            
-            logger.warning(f"No library contains path: {path}")
-            return False
-        except Exception as e:
-            logger.error(f"Path scan error: {e}")
-            return False
-    
-    # =========================================================================
-    # DUPLICATE DETECTION
-    # =========================================================================
-    
-    def check_exists(
-        self,
-        title: str,
-        year: Optional[int] = None,
-        media_type: str = "movie"
-    ) -> Dict[str, Any]:
+
+    def get_media_by_id(self, media_type: str, tmdb_id: Optional[int] = None,
+                        tvdb_id: Optional[int] = None, imdb_id: Optional[str] = None):
         """
-        Check if media already exists in Plex.
-        
+        Trouver un média dans Plex par son ID externe (TMDB/TVDB/IMDB).
+
         Returns:
-            Dict with 'exists', 'rating_key', 'plex_title'
+            PlexAPI media object or None
         """
         if not self.server:
-            return {"exists": False}
-        
+            return None
+
+        # Build GUID search patterns
+        guid_patterns = []
+        if tmdb_id:
+            guid_patterns.append(f"tmdb://{tmdb_id}")
+        if tvdb_id:
+            guid_patterns.append(f"tvdb://{tvdb_id}")
+        if imdb_id:
+            guid_patterns.append(f"imdb://{imdb_id}")
+
+        if not guid_patterns:
+            logger.warning("No IDs provided for media search")
+            return None
+
         try:
-            results = self.server.library.search(title)
-            
-            for item in results:
-                # Type check
-                if media_type == "movie" and item.type != "movie":
+            # Search in appropriate library type
+            for section in self.server.library.sections():
+                if media_type == "movie" and section.type == "movie":
+                    for guid_pattern in guid_patterns:
+                        results = section.search(guid=guid_pattern)
+                        if results:
+                            return results[0]
+                elif media_type == "series" and section.type == "show":
+                    for guid_pattern in guid_patterns:
+                        results = section.search(guid=guid_pattern)
+                        if results:
+                            return results[0]
+
+            return None
+        except Exception as e:
+            logger.error(f"Plex: Failed to search media - {e}")
+            return None
+
+    def check_availability(self, media_type: str, tmdb_id: Optional[int] = None,
+                          tvdb_id: Optional[int] = None, imdb_id: Optional[str] = None) -> bool:
+        """
+        Vérifier si un média existe dans Plex.
+        """
+        return self.get_media_by_id(media_type, tmdb_id, tvdb_id, imdb_id) is not None
+
+    def get_duplicates(self, title: str, year: Optional[int] = None,
+                      media_type: str = "movie") -> List[Dict[str, Any]]:
+        """
+        Chercher les doublons potentiels dans Plex.
+
+        Returns:
+            Liste des médias potentiellement en doublon avec leurs infos
+        """
+        if not self.server:
+            return []
+
+        duplicates = []
+
+        try:
+            for section in self.server.library.sections():
+                # Skip wrong type
+                if media_type == "movie" and section.type != "movie":
                     continue
-                if media_type in ("series", "anime") and item.type != "show":
+                if media_type == "series" and section.type != "show":
                     continue
-                
-                # Year check (if provided)
-                if year and hasattr(item, 'year') and item.year != year:
-                    continue
-                
-                # Title similarity check (basic)
-                if self._titles_match(title, item.title):
-                    return {
-                        "exists": True,
+
+                # Search by title
+                results = section.search(title=title)
+
+                for item in results:
+                    # Check year match if provided
+                    if year:
+                        item_year = getattr(item, 'year', None)
+                        if item_year and abs(item_year - year) > 1:  # Allow 1 year difference
+                            continue
+
+                    # Extract info
+                    duplicates.append({
+                        "title": item.title,
+                        "year": getattr(item, 'year', None),
                         "rating_key": item.ratingKey,
-                        "plex_title": item.title,
-                        "plex_year": getattr(item, 'year', None)
-                    }
-            
-            return {"exists": False}
+                        "library": section.title,
+                        "guid": item.guid,
+                        "summary": getattr(item, 'summary', ''),
+                        "url": f"{self.settings.plex_url}/web/index.html#!/server/{self.server.machineIdentifier}/details?key=/library/metadata/{item.ratingKey}"
+                    })
+
+            return duplicates
         except Exception as e:
-            logger.error(f"Duplicate check error: {e}")
-            return {"exists": False}
-    
-    def _titles_match(self, title1: str, title2: str) -> bool:
-        """Check if two titles are similar enough to be duplicates."""
-        t1 = title1.lower().strip()
-        t2 = title2.lower().strip()
-        
-        # Exact match
-        if t1 == t2:
-            return True
-        
-        # One contains the other
-        if t1 in t2 or t2 in t1:
-            return True
-        
-        # Remove common suffixes/prefixes and compare
-        for suffix in [' (vf)', ' (vostfr)', ' french', ' multi']:
-            t1 = t1.replace(suffix, '')
-            t2 = t2.replace(suffix, '')
-        
-        return t1 == t2
-    
-    # =========================================================================
-    # USER NOTIFICATIONS
-    # =========================================================================
-    
-    def get_users(self) -> List[Dict[str, Any]]:
-        """Get list of Plex users with access."""
-        if not self.server:
+            logger.error(f"Plex: Failed to check duplicates - {e}")
             return []
-        
-        try:
-            # Get account to list friends
-            account = self.server.myPlexAccount()
-            users = [{"id": account.id, "username": account.username, "email": account.email}]
-            
-            for user in account.users():
-                users.append({
-                    "id": user.id,
-                    "username": user.username,
-                    "email": user.email
-                })
-            
-            return users
-        except Exception as e:
-            logger.error(f"Error getting Plex users: {e}")
-            return []
-    
-    def notify_user(
-        self,
-        user_id: str,
-        media_title: str,
-        message: str = "Votre demande est maintenant disponible!"
-    ) -> bool:
+
+    def notify_user_available(self, username: str, media_title: str, media_type: str):
         """
-        Send a notification to a Plex user.
-        Note: Plex doesn't have a direct notification API, 
-        so this triggers a library update which shows "Recently Added".
+        Notifier un utilisateur Plex qu'un média est disponible.
+
+        Note: Actuellement, cette fonctionnalité n'est pas implémentée via l'API Plex.
+        On utilise Discord pour les notifications.
         """
-        # Plex notifications are limited
-        # The best we can do is ensure library is updated
-        # so the user sees "Recently Added"
-        logger.info(f"Notification for user {user_id}: {media_title} - {message}")
-        return True
-    
-    # =========================================================================
-    # MEDIA INFO
-    # =========================================================================
-    
-    def get_media_info(self, rating_key: str) -> Optional[Dict[str, Any]]:
-        """Get detailed info about a Plex media item."""
-        if not self.server:
-            return None
-        
-        try:
-            item = self.server.fetchItem(int(rating_key))
-            return {
-                "title": item.title,
-                "year": getattr(item, 'year', None),
-                "type": item.type,
-                "rating": getattr(item, 'rating', None),
-                "summary": getattr(item, 'summary', None),
-                "thumb": item.thumbUrl if hasattr(item, 'thumbUrl') else None,
-                "duration": getattr(item, 'duration', None),
-                "viewCount": getattr(item, 'viewCount', 0)
-            }
-        except NotFound:
-            return None
-        except Exception as e:
-            logger.error(f"Error getting media info: {e}")
-            return None
-    
-    def get_series_episodes(self, rating_key: str) -> Optional[Dict[str, Any]]:
+        # Plex doesn't have a direct notification API
+        # This would require Plex Pass + Home users setup
+        logger.info(f"Notification: {username} - {media_title} ({media_type}) available")
+
+    def get_watch_status(self, username: str, media_type: str,
+                        tmdb_id: Optional[int] = None, tvdb_id: Optional[int] = None):
         """
-        Get detailed episode information for a TV series.
-        
-        Args:
-            rating_key: Plex rating key for the show
-            
+        Obtenir le statut de visionnage d'un média pour un utilisateur.
+
         Returns:
-            Dict with seasons and their episodes including media details
+            Dict with watched, progress, etc. or None
         """
         if not self.server:
             return None
-        
+
+        media = self.get_media_by_id(media_type, tmdb_id=tmdb_id, tvdb_id=tvdb_id)
+        if not media:
+            return None
+
         try:
-            show = self.server.fetchItem(int(rating_key))
-            
-            if show.type != 'show':
-                logger.warning(f"Item {rating_key} is not a show, got: {show.type}")
-                return None
-            
-            seasons_data = []
-            
-            for season in show.seasons():
-                # Skip specials (season 0)
-                if season.seasonNumber == 0:
-                    continue
-                    
-                episodes_data = []
-                
-                for episode in season.episodes():
-                    episode_info = {
-                        "episode_number": episode.index,
-                        "title": episode.title,
-                        "summary": getattr(episode, 'summary', None),
-                        "duration_ms": getattr(episode, 'duration', None),
-                        "resolution": None,
-                        "video_codec": None,
-                        "audio_languages": [],
-                        "subtitle_languages": []
+            # Get user's watch history
+            # Note: This requires Plex Pass for managed users
+            user = self.server.myPlexAccount().user(username)
+            history = user.history()
+
+            # Find this media in history
+            for item in history:
+                if item.ratingKey == media.ratingKey:
+                    return {
+                        "watched": item.isWatched,
+                        "progress": getattr(item, 'viewOffset', 0),
+                        "last_viewed": getattr(item, 'lastViewedAt', None)
                     }
-                    
-                    # Extract media info from the episode
-                    if episode.media:
-                        media = episode.media[0]  # Primary media version
-                        episode_info["resolution"] = self._get_resolution_label(
-                            getattr(media, 'videoResolution', None),
-                            getattr(media, 'height', None)
-                        )
-                        episode_info["video_codec"] = getattr(media, 'videoCodec', None)
-                        
-                        # Get audio/subtitle info from parts
-                        if media.parts:
-                            part = media.parts[0]
-                            for stream in getattr(part, 'streams', []):
-                                if stream.streamType == 2:  # Audio stream
-                                    lang = getattr(stream, 'language', None) or getattr(stream, 'languageCode', 'Unknown')
-                                    if lang and lang not in episode_info["audio_languages"]:
-                                        episode_info["audio_languages"].append(lang)
-                                elif stream.streamType == 3:  # Subtitle stream
-                                    lang = getattr(stream, 'language', None) or getattr(stream, 'languageCode', 'Unknown')
-                                    if lang and lang not in episode_info["subtitle_languages"]:
-                                        episode_info["subtitle_languages"].append(lang)
-                    
-                    episodes_data.append(episode_info)
-                
-                seasons_data.append({
-                    "season_number": season.seasonNumber,
-                    "title": season.title,
-                    "episode_count": len(episodes_data),
-                    "episodes": episodes_data
-                })
-            
-            return {
-                "show_title": show.title,
-                "total_seasons": len(seasons_data),
-                "seasons": seasons_data
-            }
-            
-        except NotFound:
-            logger.warning(f"Show not found with rating_key: {rating_key}")
+
+            return {"watched": False, "progress": 0}
+        except Exception as e:
+            logger.error(f"Plex: Failed to get watch status - {e}")
+            return None
+
+    def get_library_paths(self) -> Dict[str, List[str]]:
+        """
+        Obtenir les chemins de toutes les librairies Plex.
+
+        Returns:
+            Dict avec library_name: [paths]
+        """
+        if not self.server:
+            return {}
+
+        try:
+            paths = {}
+            for section in self.server.library.sections():
+                section_paths = []
+                for location in section.locations:
+                    section_paths.append(location)
+                paths[section.title] = section_paths
+            return paths
+        except Exception as e:
+            logger.error(f"Plex: Failed to get library paths - {e}")
+            return {}
+
+    def find_media_file_path(self, media_type: str, tmdb_id: Optional[int] = None,
+                            tvdb_id: Optional[int] = None) -> Optional[str]:
+        """
+        Trouver le chemin du fichier d'un média dans Plex.
+        Utile pour vérifier où placer les nouveaux téléchargements.
+        """
+        media = self.get_media_by_id(media_type, tmdb_id=tmdb_id, tvdb_id=tvdb_id)
+        if not media:
+            return None
+
+        try:
+            # Get first media file
+            if hasattr(media, 'media') and media.media:
+                first_media = media.media[0]
+                if hasattr(first_media, 'parts') and first_media.parts:
+                    return first_media.parts[0].file
             return None
         except Exception as e:
-            logger.error(f"Error getting series episodes: {e}")
+            logger.error(f"Plex: Failed to get media file path - {e}")
             return None
-    
-    def _get_resolution_label(self, resolution: Optional[str], height: Optional[int]) -> Optional[str]:
-        """Convert resolution info to a user-friendly label."""
-        if resolution:
-            res = resolution.lower()
-            if res == '4k' or res == '2160':
-                return '4K'
-            elif res == '1080':
-                return '1080p'
-            elif res == '720':
-                return '720p'
-            elif res == '480' or res == 'sd':
-                return '480p'
-            return resolution.upper()
-        
-        if height:
-            if height >= 2160:
-                return '4K'
-            elif height >= 1080:
-                return '1080p'
-            elif height >= 720:
-                return '720p'
-            else:
-                return f'{height}p'
-        
-        return None
-    
-    # =========================================================================
-    # HEALTH CHECK
-    # =========================================================================
-    
-    def health_check(self) -> Dict[str, Any]:
-        """Check Plex connection status using cached connection."""
-        if not self.settings.plex_url or not self.settings.plex_token:
-            return {"status": "not_configured", "message": "Plex credentials not set"}
-        
+
+    def get_media_quality_info(self, media_type: str, tmdb_id: Optional[int] = None,
+                               tvdb_id: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Obtenir les infos de qualité d'un média (résolution, codec, etc.).
+        """
+        media = self.get_media_by_id(media_type, tmdb_id=tmdb_id, tvdb_id=tvdb_id)
+        if not media:
+            return {}
+
         try:
-            # Use cached server connection instead of creating new one
-            if self.server is None:
-                return {"status": "error", "message": "Could not connect to Plex"}
-            
+            info = {
+                "title": media.title,
+                "year": getattr(media, 'year', None),
+                "files": []
+            }
+
+            # Extract quality info from all versions
+            if hasattr(media, 'media'):
+                for media_item in media.media:
+                    file_info = {
+                        "resolution": getattr(media_item, 'videoResolution', 'unknown'),
+                        "codec": getattr(media_item, 'videoCodec', 'unknown'),
+                        "bitrate": getattr(media_item, 'bitrate', 0),
+                        "audio_codec": getattr(media_item, 'audioCodec', 'unknown'),
+                        "container": getattr(media_item, 'container', 'unknown'),
+                        "size_mb": getattr(media_item, 'file_size', 0) // 1024 // 1024 if hasattr(media_item, 'file_size') else 0
+                    }
+
+                    # Add file path if available
+                    if hasattr(media_item, 'parts') and media_item.parts:
+                        file_info["path"] = media_item.parts[0].file
+
+                    info["files"].append(file_info)
+
+            return info
+        except Exception as e:
+            logger.error(f"Plex: Failed to get quality info - {e}")
+            return {}
+
+    def refresh_metadata(self, media_type: str, tmdb_id: Optional[int] = None,
+                        tvdb_id: Optional[int] = None):
+        """
+        Forcer un rafraîchissement des métadonnées d'un média.
+        Utile après ajout manuel de fichiers.
+        """
+        media = self.get_media_by_id(media_type, tmdb_id=tmdb_id, tvdb_id=tvdb_id)
+        if not media:
+            logger.warning(f"Media not found for refresh: {media_type} tmdb={tmdb_id} tvdb={tvdb_id}")
+            return False
+
+        try:
+            media.refresh()
+            logger.info(f"Plex: Refreshed metadata for {media.title}")
+            return True
+        except Exception as e:
+            logger.error(f"Plex: Failed to refresh metadata - {e}")
+            return False
+
+    def health_check(self) -> Dict[str, Any]:
+        """
+        Vérifier la connexion à Plex.
+
+        Returns:
+            Dict with status and info
+        """
+        if not self._is_configured():
+            return {
+                "status": "not_configured",
+                "message": "Plex URL or token not configured (or using placeholder values)"
+            }
+
+        if not self.server:
+            return {"status": "error", "message": "Cannot connect to Plex server"}
+
+        try:
             return {
                 "status": "ok",
                 "server_name": self.server.friendlyName,
@@ -418,14 +395,27 @@ class PlexManagerService:
             return {"status": "error", "message": str(e)}
 
 
-# Singleton instance for connection reuse
+# Singleton instance (legacy - used by plex_cache_service and pipeline)
 _plex_manager_service: Optional[PlexManagerService] = None
 
 
 def get_plex_manager_service() -> PlexManagerService:
-    """Get Plex manager service singleton instance (reuses connection)."""
+    """
+    Get Plex manager service singleton instance.
+    NOTE: This is legacy code for backward compatibility with services that haven't been refactored yet.
+    New code should use dependency injection via dependencies.py
+    """
     global _plex_manager_service
     if _plex_manager_service is None:
-        _plex_manager_service = PlexManagerService()
-    return _plex_manager_service
+        from ..config import get_settings
+        from .settings_service import SettingsService
+        from ..models.database import SessionLocal
 
+        settings = get_settings()
+        db = SessionLocal()
+        try:
+            settings_service = SettingsService(db)
+            _plex_manager_service = PlexManagerService(settings, settings_service)
+        finally:
+            db.close()
+    return _plex_manager_service

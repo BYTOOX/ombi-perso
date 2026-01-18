@@ -415,8 +415,8 @@ async def get_config(
     current_user: User = Depends(get_current_admin)
 ):
     """Obtenir la configuration actuelle (sans secrets)."""
-    from ...services.file_renamer import get_file_renamer_service
-    
+    from ...dependencies import get_file_renamer_service
+
     renamer = get_file_renamer_service()
     library_paths = renamer.verify_library_paths()
     
@@ -481,31 +481,29 @@ async def get_plex_libraries(
 
 @router.get("/settings/paths")
 async def get_path_settings(
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
+    settings_service = Depends(get_settings_service)
 ):
     """
     Obtenir la configuration des chemins (download_path, library_paths).
     Retourne les chemins avec leur état de validation.
     """
-    from ...services.settings_service import get_settings_service
-    
-    service = get_settings_service()
-    return service.get_all_path_settings()
+    return settings_service.get_all_path_settings()
 
 
 @router.put("/settings/paths")
 async def update_path_settings(
     download_path: str = Query(..., description="Chemin de téléchargement"),
     library_paths: str = Query(..., description="JSON des chemins de librairie"),
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
+    settings_service = Depends(get_settings_service)
 ):
     """
     Mettre à jour la configuration des chemins.
     Sauvegarde en base de données.
     """
     import json
-    from ...services.settings_service import get_settings_service
-    
+
     # Parse library_paths from JSON string
     try:
         parsed_library_paths = json.loads(library_paths)
@@ -514,39 +512,36 @@ async def update_path_settings(
             status_code=400,
             detail=f"Invalid JSON for library_paths: {str(e)}"
         )
-    
-    service = get_settings_service()
-    result = service.update_all_path_settings(download_path, parsed_library_paths)
-    
+
+    result = settings_service.update_all_path_settings(download_path, parsed_library_paths)
+
     if not result.get("success"):
         raise HTTPException(
             status_code=400,
             detail=result.get("errors", ["Erreur de validation"])
         )
-    
+
     return result
 
 
 @router.get("/filesystem/browse")
 async def browse_filesystem(
     path: str = Query("/", description="Chemin du dossier à parcourir"),
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
+    settings_service = Depends(get_settings_service)
 ):
     """
     Parcourir le système de fichiers pour le file browser.
     Retourne uniquement les dossiers (pas les fichiers).
     """
-    from ...services.settings_service import get_settings_service
-    
-    service = get_settings_service()
-    result = service.browse_directory(path)
-    
+    result = settings_service.browse_directory(path)
+
     if result.get("error"):
         raise HTTPException(
             status_code=400,
             detail=result.get("error")
         )
-    
+
     return result
 
 
@@ -618,29 +613,25 @@ async def get_logs(
 
 @router.get("/settings/rename")
 async def get_rename_settings(
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
+    settings_service = Depends(get_settings_service)
 ):
     """
     Obtenir la configuration de renommage des fichiers.
     """
-    from ...services.settings_service import get_settings_service
-    
-    service = get_settings_service()
-    return service.get_rename_settings()
+    return settings_service.get_rename_settings()
 
 
 @router.put("/settings/rename")
 async def update_rename_settings(
     settings: dict,
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
+    settings_service = Depends(get_settings_service)
 ):
     """
     Mettre à jour la configuration de renommage.
     """
-    from ...services.settings_service import get_settings_service
-    
-    service = get_settings_service()
-    return service.update_rename_settings(settings)
+    return settings_service.update_rename_settings(settings)
 
 
 @router.post("/settings/rename/preview")
@@ -649,17 +640,16 @@ async def preview_rename(
     media_type: str = Query(..., description="Type: movie, series, anime"),
     tmdb_id: Optional[int] = Query(None, description="TMDB ID si connu"),
     tvdb_id: Optional[int] = Query(None, description="TVDB ID si connu"),
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
+    settings_service = Depends(get_settings_service)
 ):
     """
     Prévisualiser le renommage d'un fichier sans l'appliquer.
     Utile pour tester les paramètres de renommage.
     """
-    from ...services.title_resolver import get_title_resolver_service
-    from ...services.settings_service import get_settings_service
-    
+    from ...dependencies import get_title_resolver_service
+
     resolver = get_title_resolver_service()
-    settings = get_settings_service()
     
     warnings = []
     
@@ -676,11 +666,11 @@ async def preview_rename(
     
     # Get format template
     if media_type == "movie":
-        template = settings.get_movie_format()
+        template = settings_service.get_movie_format()
     elif media_type == "anime":
-        template = settings.get_anime_format()
+        template = settings_service.get_anime_format()
     else:
-        template = settings.get_series_format()
+        template = settings_service.get_series_format()
     
     # Extract season/episode if series/anime
     season, episode = None, None
@@ -719,7 +709,7 @@ async def preview_rename(
         warnings.append(f"Erreur de format: {str(e)}")
     
     # Add IDs if configured
-    rename_settings = settings.get_rename_settings()
+    rename_settings = settings_service.get_rename_settings()
     id_suffix = ""
     if rename_settings.get("include_tmdb_id") and resolved.get("tmdb_id"):
         id_suffix += f" {{tmdb-{resolved['tmdb_id']}}}"
@@ -771,15 +761,13 @@ async def test_rename(
 @router.get("/settings/rename/mappings")
 async def get_title_mappings(
     media_type: Optional[str] = Query(None, description="Filtrer par type"),
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
+    settings_service = Depends(get_settings_service)
 ):
     """
     Obtenir tous les mappings de titres manuels.
     """
-    from ...services.settings_service import get_settings_service
-    
-    service = get_settings_service()
-    return {"mappings": service.get_title_mappings(media_type)}
+    return {"mappings": settings_service.get_title_mappings(media_type)}
 
 
 @router.post("/settings/rename/mappings")
@@ -790,15 +778,13 @@ async def add_title_mapping(
     tmdb_id: Optional[int] = Query(None),
     tvdb_id: Optional[int] = Query(None),
     year: Optional[int] = Query(None),
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
+    settings_service = Depends(get_settings_service)
 ):
     """
     Ajouter un mapping de titre manuel.
     """
-    from ...services.settings_service import get_settings_service
-    
-    service = get_settings_service()
-    return service.add_title_mapping(
+    return settings_service.add_title_mapping(
         pattern=pattern,
         plex_title=plex_title,
         media_type=media_type,
@@ -811,18 +797,16 @@ async def add_title_mapping(
 @router.delete("/settings/rename/mappings/{mapping_id}")
 async def delete_title_mapping(
     mapping_id: int,
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
+    settings_service = Depends(get_settings_service)
 ):
     """
     Supprimer un mapping de titre.
     """
-    from ...services.settings_service import get_settings_service
-    
-    service = get_settings_service()
-    success = service.remove_title_mapping(mapping_id)
-    
+    success = settings_service.remove_title_mapping(mapping_id)
+
     if not success:
         raise HTTPException(status_code=404, detail="Mapping non trouvé")
-    
+
     return {"message": "Mapping supprimé"}
 
