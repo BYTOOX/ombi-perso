@@ -12,7 +12,9 @@ from ...dependencies import (
     get_downloader_service,
     get_plex_manager_service,
     get_ai_agent_service,
-    get_settings_service
+    get_settings_service,
+    get_file_renamer_service,
+    get_title_resolver_service
 )
 from ...models.user import User, UserRole, UserStatus
 from ...models.request import MediaRequest, RequestStatus
@@ -352,7 +354,10 @@ async def get_download_stats(
 
 @router.get("/health")
 async def health_check(
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
+    plex = Depends(get_plex_manager_service),
+    downloader = Depends(get_downloader_service),
+    ai = Depends(get_ai_agent_service)
 ):
     """
     Vérifier l'état de tous les services.
@@ -360,10 +365,6 @@ async def health_check(
     """
     import asyncio
     from concurrent.futures import ThreadPoolExecutor
-    
-    plex = get_plex_manager_service()
-    downloader = get_downloader_service()
-    ai = get_ai_agent_service()
     
     # Run health checks in parallel with timeouts
     loop = asyncio.get_event_loop()
@@ -412,13 +413,11 @@ async def health_check(
 
 @router.get("/config")
 async def get_config(
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
+    renamer = Depends(get_file_renamer_service)
 ):
     """Obtenir la configuration actuelle (sans secrets)."""
-    from ...dependencies import get_file_renamer_service
-
-    renamer = get_file_renamer_service()
-    library_paths = renamer.verify_library_paths()
+    library_paths = await renamer.verify_library_paths()
     
     return {
         "app_name": settings.app_name,
@@ -488,7 +487,7 @@ async def get_path_settings(
     Obtenir la configuration des chemins (download_path, library_paths).
     Retourne les chemins avec leur état de validation.
     """
-    return settings_service.get_all_path_settings()
+    return await settings_service.get_all_path_settings()
 
 
 @router.put("/settings/paths")
@@ -513,7 +512,7 @@ async def update_path_settings(
             detail=f"Invalid JSON for library_paths: {str(e)}"
         )
 
-    result = settings_service.update_all_path_settings(download_path, parsed_library_paths)
+    result = await settings_service.update_all_path_settings(download_path, parsed_library_paths)
 
     if not result.get("success"):
         raise HTTPException(
@@ -641,15 +640,13 @@ async def preview_rename(
     tmdb_id: Optional[int] = Query(None, description="TMDB ID si connu"),
     tvdb_id: Optional[int] = Query(None, description="TVDB ID si connu"),
     current_user: User = Depends(get_current_admin),
-    settings_service = Depends(get_settings_service)
+    settings_service = Depends(get_settings_service),
+    resolver = Depends(get_title_resolver_service)
 ):
     """
     Prévisualiser le renommage d'un fichier sans l'appliquer.
     Utile pour tester les paramètres de renommage.
     """
-    from ...dependencies import get_title_resolver_service
-
-    resolver = get_title_resolver_service()
     
     warnings = []
     

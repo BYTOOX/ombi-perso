@@ -474,18 +474,19 @@ class FileRenamerService:
         """Get configured library paths from database."""
         return self._settings_service.get_library_paths()
     
-    def verify_library_paths(self) -> Dict[str, Dict[str, Any]]:
+    async def verify_library_paths(self) -> Dict[str, Dict[str, Any]]:
         """Verify that configured library paths exist."""
         results = {}
-        
-        for media_type, path in self._settings_service.get_library_paths().items():
+
+        library_paths = await self._settings_service.get_library_paths()
+        for media_type, path in library_paths.items():
             p = Path(path)
             results[media_type] = {
                 "path": path,
                 "exists": p.exists(),
                 "writable": p.exists() and os.access(p, os.W_OK)
             }
-        
+
         return results
 
 

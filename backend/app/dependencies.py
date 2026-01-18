@@ -124,7 +124,7 @@ async def get_media_search_service(
     """
     from .services.media_search import MediaSearchService
 
-    service = MediaSearchService(settings)
+    service = MediaSearchService()  # No arguments needed - uses get_settings() internally
     try:
         yield service
     finally:
@@ -143,7 +143,7 @@ async def get_ai_agent_service(
     """
     from .services.ai_agent import AIAgentService
 
-    service = AIAgentService(settings)
+    service = AIAgentService()  # No arguments needed - uses get_settings() internally
     try:
         yield service
     finally:
@@ -162,7 +162,7 @@ async def get_notification_service(
     """
     from .services.notifications import NotificationService
 
-    service = NotificationService(settings)
+    service = NotificationService()  # No arguments needed - uses get_settings() internally
     try:
         yield service
     finally:
@@ -200,7 +200,7 @@ def get_title_resolver_service(
     """
     from .services.title_resolver import TitleResolverService
 
-    return TitleResolverService(settings, settings_service)
+    return TitleResolverService()  # No arguments needed - uses get_settings() internally
 
 
 async def get_file_renamer_service(
@@ -241,7 +241,7 @@ async def get_downloader_service(
     """
     from .services.downloader import DownloaderService
 
-    service = DownloaderService(settings)
+    service = DownloaderService()  # No arguments needed - uses get_settings() internally
     try:
         yield service
     finally:
