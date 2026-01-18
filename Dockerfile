@@ -35,6 +35,10 @@ ENV PATH=/root/.local/bin:$PATH
 # Copy application code
 COPY backend/app/ ./app/
 
+# Copy Alembic migrations
+COPY backend/alembic/ ./alembic/
+COPY backend/alembic.ini ./alembic.ini
+
 # Copy frontend
 COPY frontend/ ./frontend/
 

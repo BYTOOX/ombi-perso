@@ -1,4 +1,4 @@
-from .database import Base, get_db, engine
+from .database import Base, async_engine, sync_engine
 from .user import User
 from .request import MediaRequest
 from .download import Download
@@ -8,7 +8,7 @@ from .rename_settings import RenameSettings, TitleMapping
 from .transfer_history import TransferHistory, TransferStatus
 
 __all__ = [
-    "Base", "get_db", "engine", "User", "MediaRequest", "Download", 
+    "Base", "async_engine", "sync_engine", "User", "MediaRequest", "Download",
     "PlexLibraryItem", "PlexSyncStatus", "SystemSettings",
     "RenameSettings", "TitleMapping", "TransferHistory", "TransferStatus"
 ]
