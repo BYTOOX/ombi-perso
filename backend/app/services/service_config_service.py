@@ -26,6 +26,7 @@ SERVICE_METADATA = {
         "description": "Serveur de médias pour la bibliothèque",
         "icon": "bi-play-circle",
         "fields": ["url", "token"],
+        "extra_fields": ["machine_identifier"],
     },
     ServiceName.QBITTORRENT.value: {
         "display_name": "qBittorrent",
@@ -429,10 +430,14 @@ class ServiceConfigurationService:
         if settings.plex_url and settings.plex_token:
             existing = self.get_service_config_sync(ServiceName.PLEX.value)
             if not existing:
+                extra_config = {}
+                if settings.plex_machine_identifier:
+                    extra_config["machine_identifier"] = settings.plex_machine_identifier
                 self.set_service_config_sync(
                     ServiceName.PLEX.value,
                     url=settings.plex_url,
                     token=settings.plex_token,
+                    extra_config=extra_config if extra_config else None,
                     is_enabled=True
                 )
                 migrations[ServiceName.PLEX.value] = True

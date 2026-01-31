@@ -237,10 +237,16 @@ async def plex_auth(
 ):
     """
     Authenticate via Plex SSO.
-    
+
     Creates a new account if not exists (PENDING for non-first users).
     Returns token immediately for existing active users.
+
+    If machine_identifier is configured, verifies the user has access
+    to the specified Plex server before allowing login.
     """
+    from ...services.plex_access_service import check_plex_server_access
+    from ...services.service_config_service import get_service_config_service
+
     # Get Plex user info
     async with httpx.AsyncClient() as client:
         try:
@@ -255,17 +261,38 @@ async def plex_auth(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=f"Erreur Plex: {str(e)}"
             )
-    
+
     plex_id = str(plex_user.get("id"))
     plex_username = plex_user.get("username")
     plex_email = plex_user.get("email")
     plex_thumb = plex_user.get("thumb")
-    
+
     if not plex_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Impossible de récupérer l'ID Plex"
         )
+
+    # Check if user has access to the configured Plex server
+    config_service = get_service_config_service()
+    plex_config = await config_service.get_service_config("plex")
+    machine_id = (
+        plex_config.extra_config.get("machine_identifier")
+        if plex_config and plex_config.extra_config
+        else None
+    )
+
+    # Fallback to .env setting if not in DB
+    if not machine_id:
+        machine_id = settings.plex_machine_identifier
+
+    if machine_id:
+        has_access = await check_plex_server_access(plex_data.plex_token, machine_id)
+        if not has_access:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Vous n'avez pas accès à ce serveur Plex. Contactez l'administrateur."
+            )
     
     # Check if user exists by Plex ID
     result = await db.execute(

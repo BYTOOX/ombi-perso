@@ -21,7 +21,7 @@ from ...services.ai_provider import (
     get_ai_service,
 )
 from ...services.service_config_service import get_service_config_service
-from ..dependencies import get_current_admin
+from .auth import get_current_admin
 
 logger = logging.getLogger(__name__)
 

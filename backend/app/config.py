@@ -55,7 +55,11 @@ class Settings(BaseSettings):
     # Plex
     plex_url: Optional[str] = Field(default=None, description="Plex server URL")
     plex_token: Optional[str] = Field(default=None, description="Plex token")
-    
+    plex_machine_identifier: Optional[str] = Field(
+        default=None,
+        description="Machine identifier of the authorized Plex server (restricts SSO login)"
+    )
+
     # qBittorrent
     qbittorrent_url: Optional[str] = Field(default=None, description="qBittorrent WebUI URL")
     qbittorrent_username: str = Field(default="admin", description="qBittorrent username")

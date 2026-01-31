@@ -323,3 +323,49 @@ async def get_cache_stats(
             "items_without_guid": without_guid,
             "by_library": {lib: count for lib, count in by_library}
         }
+
+
+@router.get("/servers")
+async def list_plex_servers(
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    List Plex servers accessible with the admin token.
+
+    Used in admin panel to configure the authorized server (machine_identifier)
+    for restricting SSO login.
+
+    Returns list of servers with:
+    - name: Server display name
+    - machineIdentifier: Unique server ID (used for access control)
+    - owned: Whether the admin owns this server
+    """
+    from ...services.plex_access_service import get_user_plex_servers
+    from ...services.service_config_service import get_service_config_service
+    from ...config import get_settings
+
+    settings = get_settings()
+    config_service = get_service_config_service()
+
+    # Try to get token from DB first, then fallback to .env
+    plex_config = await config_service.get_decrypted_config("plex")
+    admin_token = plex_config.get("token") if plex_config else None
+
+    if not admin_token:
+        admin_token = settings.plex_token
+
+    if not admin_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Token Plex non configuré"
+        )
+
+    try:
+        servers = await get_user_plex_servers(admin_token)
+        return {"servers": servers}
+    except Exception as e:
+        logger.error(f"Error listing Plex servers: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération des serveurs: {str(e)}"
+        )

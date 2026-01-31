@@ -105,7 +105,12 @@ class Base(DeclarativeBase):
 # NOTE: get_db() and get_sync_db() moved to dependencies.py
 # Use dependencies.get_async_db() instead
 
-# REMOVED: init_db() - Database initialization now handled by Alembic migrations
-# To create tables: alembic upgrade head
-# Default admin user is created in the initial migration
+
+def init_db():
+    """
+    No-op for backward compatibility.
+    Database initialization is now handled by Alembic migrations.
+    Run: alembic upgrade head
+    """
+    pass
 

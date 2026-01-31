@@ -137,13 +137,13 @@ async def get_ai_agent_service(
     settings: Settings = Depends(get_settings_dependency)
 ) -> AsyncGenerator:
     """
-    AI agent service dependency (Ollama/Qwen).
+    AI provider service dependency (OpenAI-compatible: llama.cpp, OpenAI, OpenRouter).
 
     Automatically closes httpx client on cleanup.
     """
-    from .services.ai_agent import AIAgentService
+    from .services.ai_provider import get_ai_service
 
-    service = AIAgentService()  # No arguments needed - uses get_settings() internally
+    service = get_ai_service()
     try:
         yield service
     finally:

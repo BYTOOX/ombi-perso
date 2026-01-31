@@ -831,6 +831,19 @@
                                         </button>
                                     </div>
                                 </div>
+                                <div class="mb-3">
+                                    <label class="form-label small">Serveur autorisé (SSO)</label>
+                                    <div class="input-group input-group-sm">
+                                        <select class="form-select" id="plex-server-select">
+                                            <option value="">-- Aucune restriction --</option>
+                                        </select>
+                                        <button class="btn btn-outline-secondary" type="button" onclick="detectPlexServers()" title="Détecter les serveurs">
+                                            <i class="bi bi-search"></i>
+                                        </button>
+                                    </div>
+                                    <div class="form-text">Restreint la connexion SSO aux utilisateurs ayant accès à ce serveur</div>
+                                    <input type="hidden" id="plex-machine-identifier">
+                                </div>
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" id="plex-enabled" checked>
                                     <label class="form-check-label small" for="plex-enabled">Service activé</label>
@@ -3877,6 +3890,24 @@
                     updateAIUrlHint();
                 }
 
+                // Handle Plex machine_identifier
+                if (name === 'plex' && config.extra_config && config.extra_config.machine_identifier) {
+                    const select = document.getElementById('plex-server-select');
+                    const hiddenInput = document.getElementById('plex-machine-identifier');
+                    if (select && hiddenInput) {
+                        // Store the machine_identifier for later
+                        hiddenInput.value = config.extra_config.machine_identifier;
+                        // Add temporary option if not already detected
+                        if (!select.querySelector(`option[value="${config.extra_config.machine_identifier}"]`)) {
+                            const option = document.createElement('option');
+                            option.value = config.extra_config.machine_identifier;
+                            option.textContent = `Serveur configuré (${config.extra_config.machine_identifier.substring(0, 8)}...)`;
+                            select.appendChild(option);
+                        }
+                        select.value = config.extra_config.machine_identifier;
+                    }
+                }
+
                 // Update health dot
                 updateHealthDot(name, config.last_health_status);
 
@@ -4102,6 +4133,66 @@
             }
         }
 
+        // Plex server detection for SSO access control
+        async function detectPlexServers() {
+            const token = localStorage.getItem('access_token');
+            const select = document.getElementById('plex-server-select');
+            const statusEl = document.getElementById('plex-status');
+
+            statusEl.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split me-1"></i>Détection des serveurs...</span>';
+
+            try {
+                const response = await fetch(`${API_BASE}/plex/servers`, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Erreur serveur');
+                }
+
+                const result = await response.json();
+                const servers = result.servers || [];
+
+                // Save current value
+                const currentValue = select.value;
+
+                // Clear and repopulate
+                select.innerHTML = '<option value="">-- Aucune restriction --</option>';
+
+                servers.forEach(server => {
+                    const option = document.createElement('option');
+                    option.value = server.machineIdentifier;
+                    option.textContent = `${server.name}${server.owned ? ' (propriétaire)' : ''}`;
+                    option.dataset.serverName = server.name;
+                    select.appendChild(option);
+                });
+
+                // Restore value if it exists
+                if (currentValue) {
+                    select.value = currentValue;
+                }
+
+                statusEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${servers.length} serveur(s) détecté(s)</span>`;
+                showToast(`${servers.length} serveur(s) Plex détecté(s)`, 'success');
+            } catch (e) {
+                console.error('Error detecting Plex servers:', e);
+                statusEl.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>${e.message}</span>`;
+                showToast(`Erreur: ${e.message}`, 'danger');
+            }
+        }
+
+        // Update hidden field when server is selected
+        document.addEventListener('DOMContentLoaded', () => {
+            const select = document.getElementById('plex-server-select');
+            if (select) {
+                select.addEventListener('change', function() {
+                    document.getElementById('plex-machine-identifier').value = this.value;
+                });
+            }
+        });
+
         function getServiceConfigFromForm(serviceName) {
             const config = {
                 url: document.getElementById(`${serviceName}-url`)?.value || null,
@@ -4123,6 +4214,14 @@
                     model_analysis: document.getElementById('ai-model-analysis')?.value || null,
                     timeout: 120
                 };
+            }
+
+            // Handle Plex machine_identifier
+            if (serviceName === 'plex') {
+                const machineId = document.getElementById('plex-server-select')?.value;
+                if (machineId) {
+                    config.extra_config = { machine_identifier: machineId };
+                }
             }
 
             // Handle YGG passkey

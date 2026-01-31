@@ -1,4 +1,4 @@
-from .database import Base, get_db, engine
+from .database import Base, sync_engine as engine
 from .user import User
 from .request import MediaRequest
 from .download import Download
@@ -14,7 +14,7 @@ from .library_analysis import AnalysisRun, LibraryAnalysisResult, AnalysisType, 
 
 __all__ = [
     # Database
-    "Base", "get_db", "engine",
+    "Base", "engine",
     # Core models
     "User", "MediaRequest", "Download",
     "PlexLibraryItem", "PlexSyncStatus",
