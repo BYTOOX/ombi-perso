@@ -223,6 +223,73 @@
             box-shadow: 0 0 10px var(--danger);
         }
 
+        /* Health Dots for Services */
+        .health-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .health-dot.ok {
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .health-dot.error {
+            background: var(--danger);
+            box-shadow: 0 0 8px var(--danger);
+        }
+
+        .health-dot.timeout {
+            background: var(--warning);
+            box-shadow: 0 0 8px var(--warning);
+        }
+
+        .health-dot.not_configured {
+            background: var(--text-muted);
+        }
+
+        .health-dot.disabled {
+            background: var(--text-muted);
+            opacity: 0.5;
+        }
+
+        /* Service Health Cards */
+        .service-health-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            min-width: 140px;
+            text-align: center;
+        }
+
+        .service-health-card .service-icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .service-health-card .service-name {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .service-health-card .service-status {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .service-health-card.ok {
+            border-color: var(--success);
+        }
+
+        .service-health-card.error {
+            border-color: var(--danger);
+        }
+
         /* Pending User Card */
         .pending-user-card {
             background: rgba(255, 255, 255, 0.03);
@@ -490,6 +557,23 @@
                 </button>
             </li>
             <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#servicesTab">
+                    <i class="bi bi-plug me-2"></i>Services
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#monitoringTab">
+                    <i class="bi bi-tv me-2"></i>Monitoring
+                    <span class="badge bg-info ms-1" id="pendingApprovalsBadge" style="display:none;">0</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#analysisTab">
+                    <i class="bi bi-graph-up me-2"></i>Analyse
+                    <span class="badge bg-warning ms-1" id="analysisIssuesBadge" style="display:none;">0</span>
+                </button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link" data-bs-toggle="tab" data-bs-target="#mediaPathsTab">
                     <i class="bi bi-folder me-2"></i>Médias
                 </button>
@@ -683,6 +767,671 @@
                     <div id="configDisplay">
                         <div class="text-center py-4">
                             <div class="spinner-border spinner-border-sm text-primary"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Services Tab -->
+            <div class="tab-pane fade" id="servicesTab">
+                <div class="row g-4 mb-4">
+                    <!-- Services Health Summary -->
+                    <div class="col-12">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-heart-pulse"></i>État des Services</h3>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="refreshAllServicesHealth()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Actualiser
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="migrateServicesFromEnv()">
+                                        <i class="bi bi-box-arrow-in-down me-1"></i>Migrer depuis .env
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="servicesHealthSummary" class="p-3">
+                                <div class="d-flex flex-wrap gap-3" id="servicesHealthCards">
+                                    <div class="text-center py-3 w-100">
+                                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                                        <span class="ms-2 text-muted">Chargement...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Services Configuration Grid -->
+                <div class="row g-4" id="servicesConfigGrid">
+                    <!-- Plex Card -->
+                    <div class="col-lg-6" data-service="plex">
+                        <div class="admin-card h-100">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title">
+                                    <i class="bi bi-play-circle me-2"></i>Plex Media Server
+                                    <span class="health-dot ms-2" id="plex-health-dot"></span>
+                                </h3>
+                                <button class="btn btn-sm btn-outline-primary" onclick="testServiceConnection('plex')">
+                                    <i class="bi bi-broadcast me-1"></i>Tester
+                                </button>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-muted small mb-3">Serveur de médias pour la bibliothèque</p>
+                                <div class="mb-3">
+                                    <label class="form-label small">URL du serveur</label>
+                                    <input type="text" class="form-control form-control-sm" id="plex-url"
+                                           placeholder="http://192.168.1.x:32400">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small">Token</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" class="form-control" id="plex-token" placeholder="X-Plex-Token">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('plex-token')">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="plex-enabled" checked>
+                                    <label class="form-check-label small" for="plex-enabled">Service activé</label>
+                                </div>
+                                <div class="mt-2 small" id="plex-status"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- qBittorrent Card -->
+                    <div class="col-lg-6" data-service="qbittorrent">
+                        <div class="admin-card h-100">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title">
+                                    <i class="bi bi-download me-2"></i>qBittorrent
+                                    <span class="health-dot ms-2" id="qbittorrent-health-dot"></span>
+                                </h3>
+                                <button class="btn btn-sm btn-outline-primary" onclick="testServiceConnection('qbittorrent')">
+                                    <i class="bi bi-broadcast me-1"></i>Tester
+                                </button>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-muted small mb-3">Client de téléchargement BitTorrent</p>
+                                <div class="mb-3">
+                                    <label class="form-label small">URL WebUI</label>
+                                    <input type="text" class="form-control form-control-sm" id="qbittorrent-url"
+                                           placeholder="http://localhost:8080">
+                                </div>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label small">Nom d'utilisateur</label>
+                                        <input type="text" class="form-control form-control-sm" id="qbittorrent-username"
+                                               placeholder="admin">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small">Mot de passe</label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="password" class="form-control" id="qbittorrent-password">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('qbittorrent-password')">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="qbittorrent-enabled" checked>
+                                    <label class="form-check-label small" for="qbittorrent-enabled">Service activé</label>
+                                </div>
+                                <div class="mt-2 small" id="qbittorrent-status"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Card -->
+                    <div class="col-lg-6" data-service="ai">
+                        <div class="admin-card h-100">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title">
+                                    <i class="bi bi-robot me-2"></i>IA (OpenAI-compatible)
+                                    <span class="health-dot ms-2" id="ai-health-dot"></span>
+                                </h3>
+                                <button class="btn btn-sm btn-outline-primary" onclick="testAIConnection()">
+                                    <i class="bi bi-broadcast me-1"></i>Tester
+                                </button>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-muted small mb-3">llama.cpp, OpenAI, OpenRouter</p>
+
+                                <!-- Provider Type -->
+                                <div class="mb-3">
+                                    <label class="form-label small">Type de provider</label>
+                                    <select class="form-select form-select-sm" id="ai-provider-type" onchange="updateAIUrlHint()">
+                                        <option value="llama_cpp">llama.cpp / llama-cpp-python</option>
+                                        <option value="openai">OpenAI</option>
+                                        <option value="openrouter">OpenRouter</option>
+                                    </select>
+                                </div>
+
+                                <!-- URL -->
+                                <div class="mb-3">
+                                    <label class="form-label small">URL du serveur</label>
+                                    <input type="text" class="form-control form-control-sm" id="ai-url"
+                                           placeholder="http://192.168.1.x:8080">
+                                    <div class="form-text small" id="ai-url-hint">Ex: http://localhost:8080</div>
+                                </div>
+
+                                <!-- API Key (optional) -->
+                                <div class="mb-3">
+                                    <label class="form-label small">Clé API (optionnel)</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" class="form-control" id="ai-api-key"
+                                               placeholder="sk-... ou laisser vide">
+                                        <button class="btn btn-outline-secondary" type="button"
+                                                onclick="togglePasswordVisibility('ai-api-key')">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Models Section (hidden until test) -->
+                                <div id="ai-models-section" style="display: none;">
+                                    <hr class="my-2">
+                                    <p class="small text-muted mb-2">Modèles par usage:</p>
+
+                                    <div class="mb-2">
+                                        <label class="form-label small">Scoring torrents</label>
+                                        <select class="form-select form-select-sm" id="ai-model-scoring">
+                                            <option value="">-- Tester d'abord --</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <label class="form-label small">Renommage fichiers</label>
+                                        <select class="form-select form-select-sm" id="ai-model-rename">
+                                            <option value="">-- Tester d'abord --</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <label class="form-label small">Analyse librairie</label>
+                                        <select class="form-select form-select-sm" id="ai-model-analysis">
+                                            <option value="">-- Tester d'abord --</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-check form-switch mt-3">
+                                    <input class="form-check-input" type="checkbox" id="ai-enabled" checked>
+                                    <label class="form-check-label small" for="ai-enabled">Service activé</label>
+                                </div>
+                                <div class="mt-2 small" id="ai-status"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- YGGtorrent Card -->
+                    <div class="col-lg-6" data-service="ygg">
+                        <div class="admin-card h-100">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title">
+                                    <i class="bi bi-magnet me-2"></i>YGGtorrent
+                                    <span class="health-dot ms-2" id="ygg-health-dot"></span>
+                                </h3>
+                                <button class="btn btn-sm btn-outline-primary" onclick="testServiceConnection('ygg')">
+                                    <i class="bi bi-broadcast me-1"></i>Tester
+                                </button>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-muted small mb-3">Source de torrents français</p>
+                                <div class="mb-3">
+                                    <label class="form-label small">URL de base</label>
+                                    <input type="text" class="form-control form-control-sm" id="ygg-url"
+                                           placeholder="https://www.yggtorrent.top">
+                                </div>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label small">Nom d'utilisateur</label>
+                                        <input type="text" class="form-control form-control-sm" id="ygg-username">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small">Mot de passe</label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="password" class="form-control" id="ygg-password">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('ygg-password')">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small">Passkey (optionnel)</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" class="form-control" id="ygg-passkey"
+                                               placeholder="Pour téléchargements directs">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('ygg-passkey')">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="ygg-enabled" checked>
+                                    <label class="form-check-label small" for="ygg-enabled">Service activé</label>
+                                </div>
+                                <div class="mt-2 small" id="ygg-status"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TMDB Card -->
+                    <div class="col-lg-6" data-service="tmdb">
+                        <div class="admin-card h-100">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title">
+                                    <i class="bi bi-film me-2"></i>TMDB
+                                    <span class="health-dot ms-2" id="tmdb-health-dot"></span>
+                                </h3>
+                                <button class="btn btn-sm btn-outline-primary" onclick="testServiceConnection('tmdb')">
+                                    <i class="bi bi-broadcast me-1"></i>Tester
+                                </button>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-muted small mb-3">Base de données de films et séries</p>
+                                <div class="mb-3">
+                                    <label class="form-label small">Clé API</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" class="form-control" id="tmdb-api-key"
+                                               placeholder="Clé API TMDB v3">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('tmdb-api-key')">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="tmdb-enabled" checked>
+                                    <label class="form-check-label small" for="tmdb-enabled">Service activé</label>
+                                </div>
+                                <div class="mt-2 small" id="tmdb-status"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Discord Card -->
+                    <div class="col-lg-6" data-service="discord">
+                        <div class="admin-card h-100">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title">
+                                    <i class="bi bi-discord me-2"></i>Discord
+                                    <span class="health-dot ms-2" id="discord-health-dot"></span>
+                                </h3>
+                                <button class="btn btn-sm btn-outline-primary" onclick="testServiceConnection('discord')">
+                                    <i class="bi bi-broadcast me-1"></i>Tester
+                                </button>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-muted small mb-3">Notifications via webhook</p>
+                                <div class="mb-3">
+                                    <label class="form-label small">URL du Webhook</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" class="form-control" id="discord-url"
+                                               placeholder="https://discord.com/api/webhooks/...">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('discord-url')">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="discord-enabled" checked>
+                                    <label class="form-check-label small" for="discord-enabled">Service activé</label>
+                                </div>
+                                <div class="mt-2 small" id="discord-status"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save All Button -->
+                <div class="row mt-4">
+                    <div class="col-12 text-end">
+                        <button class="btn btn-primary-custom btn-lg" onclick="saveAllServicesConfig()">
+                            <i class="bi bi-check-lg me-2"></i>Enregistrer tous les services
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monitoring Tab -->
+            <div class="tab-pane fade" id="monitoringTab">
+                <!-- Stats Row -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon primary"><i class="bi bi-tv"></i></div>
+                            <div class="stat-info">
+                                <h3 id="monitoringTotalSeries">0</h3>
+                                <p>Séries suivies</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon success"><i class="bi bi-play-circle"></i></div>
+                            <div class="stat-info">
+                                <h3 id="monitoringActiveSeries">0</h3>
+                                <p>Actives</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon warning"><i class="bi bi-hourglass-split"></i></div>
+                            <div class="stat-info">
+                                <h3 id="monitoringPendingApprovals">0</h3>
+                                <p>En attente</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="stat-card">
+                            <div class="stat-icon info"><i class="bi bi-calendar-event"></i></div>
+                            <div class="stat-info">
+                                <h3 id="monitoringUpcomingEpisodes">0</h3>
+                                <p>Épisodes à venir</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-tabs -->
+                <ul class="nav nav-pills mb-4" id="monitoringSubTabs">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#seriesListPane">
+                            <i class="bi bi-list-ul me-1"></i>Séries suivies
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#calendarPane">
+                            <i class="bi bi-calendar3 me-1"></i>Calendrier
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#pendingApprovalsPane">
+                            <i class="bi bi-hourglass-split me-1"></i>En attente
+                            <span class="badge bg-warning ms-1" id="pendingApprovalsPillBadge" style="display:none;">0</span>
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Sub-tab Content -->
+                <div class="tab-content">
+                    <!-- Series List Pane -->
+                    <div class="tab-pane fade show active" id="seriesListPane">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-tv"></i>Séries suivies</h3>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="refreshMonitoredSeries()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Actualiser
+                                    </button>
+                                    <button class="btn btn-sm btn-primary-custom" onclick="showAddSeriesModal()">
+                                        <i class="bi bi-plus-lg me-1"></i>Ajouter
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-dark-custom">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:60px;"></th>
+                                            <th>Titre</th>
+                                            <th style="width:100px;">Type</th>
+                                            <th style="width:120px;">Qualité</th>
+                                            <th style="width:100px;">Audio</th>
+                                            <th style="width:100px;">Statut</th>
+                                            <th style="width:120px;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="monitoredSeriesBody">
+                                        <tr>
+                                            <td colspan="7" class="text-center py-4">
+                                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                                                <span class="ms-2 text-muted">Chargement...</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Calendar Pane -->
+                    <div class="tab-pane fade" id="calendarPane">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-calendar3"></i>Calendrier des épisodes</h3>
+                                <div class="d-flex gap-2 align-items-center">
+                                    <select class="form-select form-select-sm" id="calendarDaysFilter" style="width:auto;">
+                                        <option value="7">7 jours</option>
+                                        <option value="14" selected>14 jours</option>
+                                        <option value="30">30 jours</option>
+                                    </select>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="refreshCalendar()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Actualiser
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="calendarContent" class="p-3">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                                    <span class="ms-2 text-muted">Chargement du calendrier...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pending Approvals Pane -->
+                    <div class="tab-pane fade" id="pendingApprovalsPane">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-hourglass-split"></i>Épisodes en attente d'approbation</h3>
+                                <button class="btn btn-sm btn-outline-primary" onclick="refreshPendingApprovals()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Actualiser
+                                </button>
+                            </div>
+                            <div id="pendingApprovalsContent">
+                                <div class="text-center py-4 text-muted">
+                                    <i class="bi bi-check-circle fs-1 mb-2 d-block"></i>
+                                    Aucun épisode en attente d'approbation
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Manual Tasks -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title"><i class="bi bi-gear"></i>Tâches manuelles</h3>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 p-3">
+                                <button class="btn btn-outline-primary" onclick="triggerEpisodeCheck()">
+                                    <i class="bi bi-search me-1"></i>Rechercher nouveaux épisodes
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="triggerAiredUpdate()">
+                                    <i class="bi bi-calendar-check me-1"></i>Mettre à jour statuts diffusés
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Tab -->
+            <div class="tab-pane fade" id="analysisTab">
+                <!-- Stats Row -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3">
+                        <div class="admin-card text-center">
+                            <div class="display-4 text-danger mb-2" id="analysisHighCount">0</div>
+                            <div class="text-muted">Priorité haute</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="admin-card text-center">
+                            <div class="display-4 text-warning mb-2" id="analysisMediumCount">0</div>
+                            <div class="text-muted">Priorité moyenne</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="admin-card text-center">
+                            <div class="display-4 text-success mb-2" id="analysisLowCount">0</div>
+                            <div class="text-muted">Priorité basse</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="admin-card text-center">
+                            <div class="display-4 text-info mb-2" id="analysisTotalCount">0</div>
+                            <div class="text-muted">Total problèmes</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analysis Controls -->
+                <div class="row g-4 mb-4">
+                    <div class="col-12">
+                        <div class="admin-card">
+                            <h5 class="mb-3"><i class="bi bi-gear me-2"></i>Lancer une analyse</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Types d'analyse</label>
+                                    <select class="form-select" id="analysisTypes" multiple size="5">
+                                        <option value="missing_collection" selected>Collections manquantes</option>
+                                        <option value="low_quality" selected>Qualité basse (480p, SD)</option>
+                                        <option value="bad_codec" selected>Codecs obsolètes</option>
+                                        <option value="vostfr_upgradable" selected>VOSTFR upgradable</option>
+                                        <option value="missing_episodes" selected>Épisodes manquants</option>
+                                    </select>
+                                    <small class="text-muted">Ctrl+clic pour sélection multiple</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Types de médias</label>
+                                    <select class="form-select" id="analysisMediaTypes" multiple size="5">
+                                        <option value="movie" selected>Films</option>
+                                        <option value="series" selected>Séries</option>
+                                        <option value="anime" selected>Animés</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 d-flex flex-column justify-content-end">
+                                    <button class="btn btn-primary btn-lg" id="startAnalysisBtn" onclick="startAnalysis()">
+                                        <i class="bi bi-play-fill me-2"></i>Lancer l'analyse
+                                    </button>
+                                    <div class="mt-2" id="analysisProgress" style="display:none;">
+                                        <div class="progress">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                                 role="progressbar" id="analysisProgressBar" style="width: 0%">0%</div>
+                                        </div>
+                                        <small class="text-muted" id="analysisPhase">Initialisation...</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="row g-4 mb-4">
+                    <div class="col-12">
+                        <div class="admin-card">
+                            <div class="d-flex flex-wrap gap-3 align-items-end">
+                                <div>
+                                    <label class="form-label">Type de problème</label>
+                                    <select class="form-select" id="filterAnalysisType" onchange="filterAnalysisResults()">
+                                        <option value="">Tous les types</option>
+                                        <option value="missing_collection">Collections manquantes</option>
+                                        <option value="low_quality">Qualité basse</option>
+                                        <option value="bad_codec">Codecs obsolètes</option>
+                                        <option value="vostfr_upgradable">VOSTFR upgradable</option>
+                                        <option value="missing_episodes">Épisodes manquants</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label">Sévérité</label>
+                                    <select class="form-select" id="filterSeverity" onchange="filterAnalysisResults()">
+                                        <option value="">Toutes</option>
+                                        <option value="high">Haute</option>
+                                        <option value="medium">Moyenne</option>
+                                        <option value="low">Basse</option>
+                                    </select>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="showDismissed" onchange="filterAnalysisResults()">
+                                    <label class="form-check-label" for="showDismissed">Afficher les ignorés</label>
+                                </div>
+                                <button class="btn btn-outline-secondary" onclick="loadAnalysisResults()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Actualiser
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Table -->
+                <div class="row g-4">
+                    <div class="col-12">
+                        <div class="admin-card">
+                            <h5 class="mb-3"><i class="bi bi-list-check me-2"></i>Résultats d'analyse</h5>
+                            <div class="table-responsive">
+                                <table class="table table-dark table-hover" id="analysisResultsTable">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 60px;">Poster</th>
+                                            <th>Titre</th>
+                                            <th>Type</th>
+                                            <th>Problème</th>
+                                            <th>Sévérité</th>
+                                            <th>Action recommandée</th>
+                                            <th style="width: 150px;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="analysisResultsBody">
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted py-4">
+                                                <i class="bi bi-graph-up display-4"></i>
+                                                <p class="mt-2 mb-0">Aucun résultat. Lancez une analyse pour détecter les problèmes.</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analysis History -->
+                <div class="row g-4 mt-2">
+                    <div class="col-12">
+                        <div class="admin-card">
+                            <h5 class="mb-3"><i class="bi bi-clock-history me-2"></i>Historique des analyses</h5>
+                            <div class="table-responsive">
+                                <table class="table table-dark table-hover" id="analysisHistoryTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Statut</th>
+                                            <th>Types analysés</th>
+                                            <th>Items analysés</th>
+                                            <th>Problèmes trouvés</th>
+                                            <th>Durée</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="analysisHistoryBody">
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted py-4">
+                                                Aucune analyse effectuée
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1487,6 +2236,92 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                     <button type="button" class="btn btn-primary-custom" onclick="selectCurrentPath()">
                         <i class="bi bi-check-lg me-1"></i>Sélectionner ce dossier
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Series Modal -->
+    <div class="modal fade" id="addSeriesModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-plus-lg me-2"></i>Ajouter une série au monitoring</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Search -->
+                    <div class="mb-4">
+                        <label class="form-label">Rechercher une série</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="seriesSearchInput"
+                                   placeholder="Nom de la série ou de l'anime...">
+                            <button class="btn btn-primary-custom" type="button" onclick="searchSeriesToAdd()">
+                                <i class="bi bi-search me-1"></i>Rechercher
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Search Results -->
+                    <div id="seriesSearchResults" class="mb-4" style="display:none;">
+                        <h6 class="text-muted mb-3">Résultats de recherche</h6>
+                        <div id="seriesSearchResultsList" class="row g-2" style="max-height:300px; overflow-y:auto;">
+                        </div>
+                    </div>
+
+                    <!-- Selected Series Info -->
+                    <div id="selectedSeriesInfo" style="display:none;">
+                        <hr class="border-secondary">
+                        <h6 class="text-muted mb-3">Série sélectionnée</h6>
+                        <div class="d-flex gap-3 mb-3">
+                            <img id="selectedSeriesPoster" src="" alt="Poster"
+                                 style="width:80px; height:120px; object-fit:cover; border-radius:8px;">
+                            <div>
+                                <h5 id="selectedSeriesTitle" class="mb-1"></h5>
+                                <p id="selectedSeriesYear" class="text-muted small mb-2"></p>
+                                <input type="hidden" id="selectedSeriesTmdbId">
+                                <input type="hidden" id="selectedSeriesAnilistId">
+                                <input type="hidden" id="selectedSeriesMediaType">
+                                <input type="hidden" id="selectedSeriesPosterUrl">
+                            </div>
+                        </div>
+
+                        <!-- Monitoring Options -->
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label small">Type de monitoring</label>
+                                <select class="form-select form-select-sm" id="addSeriesMonitorType">
+                                    <option value="new_episodes">Nouveaux épisodes</option>
+                                    <option value="vostfr_upgrade">Upgrade VOSTFR → MULTI</option>
+                                    <option value="both">Les deux</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">Qualité préférée</label>
+                                <select class="form-select form-select-sm" id="addSeriesQuality">
+                                    <option value="4k">4K</option>
+                                    <option value="1080p" selected>1080p</option>
+                                    <option value="720p">720p</option>
+                                    <option value="any">N'importe laquelle</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">Audio préféré</label>
+                                <select class="form-select form-select-sm" id="addSeriesAudio">
+                                    <option value="multi" selected>MULTI (FR + VO)</option>
+                                    <option value="vf">VF uniquement</option>
+                                    <option value="vostfr">VOSTFR</option>
+                                    <option value="any">N'importe lequel</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary-custom" onclick="addSeriesToMonitoring()" id="addSeriesBtn" disabled>
+                        <i class="bi bi-plus-lg me-1"></i>Ajouter au monitoring
                     </button>
                 </div>
             </div>
@@ -2937,6 +3772,1414 @@
                 initTransfersWebSocket();
             }
         });
+
+        // =========================================================================
+        // SERVICES CONFIGURATION
+        // =========================================================================
+
+        const serviceIcons = {
+            plex: 'bi-play-circle',
+            qbittorrent: 'bi-download',
+            ai: 'bi-robot',
+            ygg: 'bi-magnet',
+            tmdb: 'bi-film',
+            discord: 'bi-discord',
+            flaresolverr: 'bi-shield-check',
+            yggapi: 'bi-cloud'
+        };
+
+        const serviceNames = {
+            plex: 'Plex',
+            qbittorrent: 'qBittorrent',
+            ai: 'IA',
+            ygg: 'YGG',
+            tmdb: 'TMDB',
+            discord: 'Discord',
+            flaresolverr: 'FlareSolverr',
+            yggapi: 'YggAPI'
+        };
+
+        async function loadServicesConfig() {
+            const token = localStorage.getItem('access_token');
+
+            try {
+                const response = await fetch(`${API_BASE}/services`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const services = await response.json();
+                    populateServicesForm(services);
+                }
+            } catch (e) {
+                console.error('Error loading services config:', e);
+            }
+        }
+
+        function populateServicesForm(services) {
+            services.forEach(service => {
+                const name = service.service_name;
+                const config = service.config || {};
+
+                // Set URL
+                const urlInput = document.getElementById(`${name}-url`);
+                if (urlInput) urlInput.value = config.url || '';
+
+                // Set username
+                const usernameInput = document.getElementById(`${name}-username`);
+                if (usernameInput) usernameInput.value = config.username || '';
+
+                // Set enabled status
+                const enabledCheckbox = document.getElementById(`${name}-enabled`);
+                if (enabledCheckbox) enabledCheckbox.checked = config.is_enabled !== false;
+
+                // Handle AI extra config
+                if (name === 'ai' && config.extra_config) {
+                    const providerSelect = document.getElementById('ai-provider-type');
+                    if (providerSelect) providerSelect.value = config.extra_config.provider_type || 'llama_cpp';
+
+                    const modelScoringSelect = document.getElementById('ai-model-scoring');
+                    const modelRenameSelect = document.getElementById('ai-model-rename');
+                    const modelAnalysisSelect = document.getElementById('ai-model-analysis');
+
+                    // Store configured models for later use
+                    window.aiConfiguredModels = {
+                        scoring: config.extra_config.model_scoring || '',
+                        rename: config.extra_config.model_rename || '',
+                        analysis: config.extra_config.model_analysis || ''
+                    };
+
+                    // Show models section if models are configured
+                    if (config.extra_config.model_scoring || config.extra_config.model_rename || config.extra_config.model_analysis) {
+                        document.getElementById('ai-models-section').style.display = 'block';
+                        // Add configured models as options
+                        [modelScoringSelect, modelRenameSelect, modelAnalysisSelect].forEach(select => {
+                            if (select) {
+                                select.innerHTML = '<option value="">-- Sélectionner --</option>';
+                                const models = new Set([
+                                    config.extra_config.model_scoring,
+                                    config.extra_config.model_rename,
+                                    config.extra_config.model_analysis
+                                ].filter(Boolean));
+                                models.forEach(model => {
+                                    const option = document.createElement('option');
+                                    option.value = model;
+                                    option.textContent = model;
+                                    select.appendChild(option);
+                                });
+                            }
+                        });
+                        if (modelScoringSelect) modelScoringSelect.value = config.extra_config.model_scoring || '';
+                        if (modelRenameSelect) modelRenameSelect.value = config.extra_config.model_rename || '';
+                        if (modelAnalysisSelect) modelAnalysisSelect.value = config.extra_config.model_analysis || '';
+                    }
+
+                    updateAIUrlHint();
+                }
+
+                // Update health dot
+                updateHealthDot(name, config.last_health_status);
+
+                // Update status message
+                const statusEl = document.getElementById(`${name}-status`);
+                if (statusEl && config.last_health_message) {
+                    statusEl.innerHTML = `<span class="text-${config.last_health_status === 'ok' ? 'success' : 'muted'}">${config.last_health_message}</span>`;
+                }
+            });
+        }
+
+        function updateHealthDot(serviceName, status) {
+            const dot = document.getElementById(`${serviceName}-health-dot`);
+            if (dot) {
+                dot.className = `health-dot ms-2 ${status || ''}`;
+            }
+        }
+
+        async function refreshAllServicesHealth() {
+            const token = localStorage.getItem('access_token');
+            const container = document.getElementById('servicesHealthCards');
+
+            container.innerHTML = `
+                <div class="text-center py-3 w-100">
+                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                    <span class="ms-2 text-muted">Vérification en cours...</span>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`${API_BASE}/services/health/all`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    renderServicesHealthCards(data.services, data.summary);
+
+                    // Update individual health dots
+                    Object.entries(data.services).forEach(([name, health]) => {
+                        updateHealthDot(name, health.status);
+                    });
+                }
+            } catch (e) {
+                console.error('Error refreshing services health:', e);
+                container.innerHTML = '<p class="text-danger">Erreur lors de la vérification</p>';
+            }
+        }
+
+        function renderServicesHealthCards(services, summary) {
+            const container = document.getElementById('servicesHealthCards');
+
+            let html = '';
+
+            // Summary badge
+            html += `
+                <div class="w-100 mb-3">
+                    <span class="badge ${summary.overall_status === 'ok' ? 'bg-success' : summary.overall_status === 'degraded' ? 'bg-warning' : 'bg-danger'} me-2">
+                        ${summary.ok}/${summary.total} services OK
+                    </span>
+                    ${summary.error > 0 ? `<span class="badge bg-danger">${summary.error} en erreur</span>` : ''}
+                    ${summary.not_configured > 0 ? `<span class="badge bg-secondary ms-1">${summary.not_configured} non configurés</span>` : ''}
+                </div>
+            `;
+
+            // Service cards
+            Object.entries(services).forEach(([name, health]) => {
+                const icon = serviceIcons[name] || 'bi-gear';
+                const displayName = serviceNames[name] || name;
+
+                html += `
+                    <div class="service-health-card ${health.status}">
+                        <div class="service-icon"><i class="bi ${icon}"></i></div>
+                        <div class="service-name">${displayName}</div>
+                        <div class="service-status">
+                            <span class="health-dot ${health.status}"></span>
+                            ${health.latency_ms ? `${health.latency_ms}ms` : health.status === 'not_configured' ? 'Non configuré' : health.status}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        async function testServiceConnection(serviceName) {
+            const token = localStorage.getItem('access_token');
+            const statusEl = document.getElementById(`${serviceName}-status`);
+
+            statusEl.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split me-1"></i>Test en cours...</span>';
+
+            // Build config from form
+            const config = getServiceConfigFromForm(serviceName);
+
+            try {
+                const response = await fetch(`${API_BASE}/services/${serviceName}/test`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+
+                const result = await response.json();
+
+                updateHealthDot(serviceName, result.status);
+
+                if (result.status === 'ok') {
+                    statusEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${result.message}</span>`;
+                    showToast(`${serviceNames[serviceName]}: Connexion réussie`, 'success');
+                } else {
+                    statusEl.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>${result.message}</span>`;
+                    showToast(`${serviceNames[serviceName]}: ${result.message}`, 'danger');
+                }
+            } catch (e) {
+                console.error('Error testing service:', e);
+                statusEl.innerHTML = '<span class="text-danger">Erreur de connexion</span>';
+                showToast('Erreur réseau', 'danger');
+            }
+        }
+
+        // AI-specific functions
+        async function testAIConnection() {
+            const token = localStorage.getItem('access_token');
+            const statusEl = document.getElementById('ai-status');
+            const modelsSection = document.getElementById('ai-models-section');
+
+            statusEl.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split me-1"></i>Test en cours...</span>';
+
+            const testConfig = {
+                provider_type: document.getElementById('ai-provider-type')?.value || 'llama_cpp',
+                base_url: document.getElementById('ai-url')?.value || null,
+                api_key: document.getElementById('ai-api-key')?.value || null
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/ai/test`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(testConfig)
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'ok') {
+                    statusEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${result.models.length} modèle(s) disponible(s)</span>`;
+                    updateHealthDot('ai', 'ok');
+
+                    // Populate model dropdowns
+                    populateAIModelDropdowns(result.models);
+                    modelsSection.style.display = 'block';
+
+                    showToast('Connexion IA réussie', 'success');
+                } else {
+                    statusEl.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>${result.message}</span>`;
+                    updateHealthDot('ai', 'error');
+                    showToast(`IA: ${result.message}`, 'danger');
+                }
+            } catch (e) {
+                console.error('Error testing AI:', e);
+                statusEl.innerHTML = '<span class="text-danger">Erreur réseau</span>';
+                updateHealthDot('ai', 'error');
+                showToast('Erreur réseau', 'danger');
+            }
+        }
+
+        function populateAIModelDropdowns(models) {
+            const selects = ['ai-model-scoring', 'ai-model-rename', 'ai-model-analysis'];
+            const configured = window.aiConfiguredModels || {};
+
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (!select) return;
+
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">-- Sélectionner --</option>';
+
+                models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.id;
+                    select.appendChild(option);
+                });
+
+                // Restore value
+                const configKey = selectId.replace('ai-model-', '');
+                if (currentValue) {
+                    select.value = currentValue;
+                } else if (configured[configKey]) {
+                    select.value = configured[configKey];
+                } else if (models.length > 0) {
+                    // Default to first model
+                    select.value = models[0].id;
+                }
+            });
+        }
+
+        function updateAIUrlHint() {
+            const providerType = document.getElementById('ai-provider-type')?.value;
+            const hintEl = document.getElementById('ai-url-hint');
+            if (!hintEl) return;
+
+            const hints = {
+                'llama_cpp': 'Ex: http://localhost:8080',
+                'openai': 'https://api.openai.com',
+                'openrouter': 'https://openrouter.ai'
+            };
+            hintEl.textContent = hints[providerType] || 'Ex: http://localhost:8080';
+        }
+
+        function togglePasswordVisibility(inputId) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+
+            if (input.type === 'password') {
+                input.type = 'text';
+            } else {
+                input.type = 'password';
+            }
+        }
+
+        function getServiceConfigFromForm(serviceName) {
+            const config = {
+                url: document.getElementById(`${serviceName}-url`)?.value || null,
+                username: document.getElementById(`${serviceName}-username`)?.value || null,
+                password: document.getElementById(`${serviceName}-password`)?.value || null,
+                api_key: document.getElementById(`${serviceName}-api-key`)?.value || null,
+                token: document.getElementById(`${serviceName}-token`)?.value || null,
+                is_enabled: document.getElementById(`${serviceName}-enabled`)?.checked ?? true,
+                extra_config: null
+            };
+
+            // Handle AI-specific fields
+            if (serviceName === 'ai') {
+                config.api_key = document.getElementById('ai-api-key')?.value || null;
+                config.extra_config = {
+                    provider_type: document.getElementById('ai-provider-type')?.value || 'llama_cpp',
+                    model_scoring: document.getElementById('ai-model-scoring')?.value || null,
+                    model_rename: document.getElementById('ai-model-rename')?.value || null,
+                    model_analysis: document.getElementById('ai-model-analysis')?.value || null,
+                    timeout: 120
+                };
+            }
+
+            // Handle YGG passkey
+            if (serviceName === 'ygg') {
+                const passkey = document.getElementById('ygg-passkey')?.value;
+                if (passkey) {
+                    config.extra_config = { passkey };
+                }
+            }
+
+            return config;
+        }
+
+        async function saveAllServicesConfig() {
+            const token = localStorage.getItem('access_token');
+            const services = ['plex', 'qbittorrent', 'ai', 'ygg', 'tmdb', 'discord'];
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (const serviceName of services) {
+                const config = getServiceConfigFromForm(serviceName);
+
+                // Skip if no URL/API key is set
+                if (!config.url && !config.api_key && !config.token) {
+                    continue;
+                }
+
+                try {
+                    const response = await fetch(`${API_BASE}/services/${serviceName}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(config)
+                    });
+
+                    if (response.ok) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                    }
+                } catch (e) {
+                    console.error(`Error saving ${serviceName}:`, e);
+                    errorCount++;
+                }
+            }
+
+            if (successCount > 0) {
+                showToast(`${successCount} service(s) sauvegardé(s)`, 'success');
+            }
+            if (errorCount > 0) {
+                showToast(`${errorCount} erreur(s) de sauvegarde`, 'danger');
+            }
+
+            // Refresh health
+            await refreshAllServicesHealth();
+        }
+
+        async function migrateServicesFromEnv() {
+            const token = localStorage.getItem('access_token');
+
+            try {
+                const response = await fetch(`${API_BASE}/services/migrate-env`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    showToast(result.message, 'success');
+                    await loadServicesConfig();
+                    await refreshAllServicesHealth();
+                } else {
+                    showToast('Erreur de migration', 'danger');
+                }
+            } catch (e) {
+                console.error('Error migrating services:', e);
+                showToast('Erreur réseau', 'danger');
+            }
+        }
+
+        function togglePasswordVisibility(inputId) {
+            const input = document.getElementById(inputId);
+            const icon = input.nextElementSibling?.querySelector('i') || input.parentElement.querySelector('button i');
+
+            if (input.type === 'password') {
+                input.type = 'text';
+                if (icon) icon.className = 'bi bi-eye-slash';
+            } else {
+                input.type = 'password';
+                if (icon) icon.className = 'bi bi-eye';
+            }
+        }
+
+        // Load services when tab is shown
+        document.querySelector('[data-bs-target="#servicesTab"]')?.addEventListener('shown.bs.tab', () => {
+            loadServicesConfig();
+            refreshAllServicesHealth();
+        });
+
+        // =========================================================================
+        // MONITORING TAB
+        // =========================================================================
+
+        let monitoredSeriesData = [];
+        let calendarData = [];
+
+        // Load monitoring data when tab is shown
+        document.querySelector('[data-bs-target="#monitoringTab"]')?.addEventListener('shown.bs.tab', () => {
+            loadMonitoringData();
+        });
+
+        async function loadMonitoringData() {
+            await Promise.all([
+                loadMonitoringStats(),
+                refreshMonitoredSeries(),
+                refreshPendingApprovals()
+            ]);
+        }
+
+        async function loadMonitoringStats() {
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/stats`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('monitoringTotalSeries').textContent = stats.total_series || 0;
+                    document.getElementById('monitoringActiveSeries').textContent = stats.by_status?.active || 0;
+                    document.getElementById('monitoringPendingApprovals').textContent = stats.pending_approvals || 0;
+
+                    // Update badges
+                    const badge = document.getElementById('pendingApprovalsBadge');
+                    const pillBadge = document.getElementById('pendingApprovalsPillBadge');
+                    if (stats.pending_approvals > 0) {
+                        badge.textContent = stats.pending_approvals;
+                        badge.style.display = 'inline';
+                        pillBadge.textContent = stats.pending_approvals;
+                        pillBadge.style.display = 'inline';
+                    } else {
+                        badge.style.display = 'none';
+                        pillBadge.style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading monitoring stats:', e);
+            }
+        }
+
+        async function refreshMonitoredSeries() {
+            const tbody = document.getElementById('monitoredSeriesBody');
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4">
+                <div class="spinner-border spinner-border-sm text-primary"></div>
+                <span class="ms-2 text-muted">Chargement...</span>
+            </td></tr>`;
+
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/series`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    monitoredSeriesData = await response.json();
+                    renderMonitoredSeries();
+                }
+            } catch (e) {
+                console.error('Error loading monitored series:', e);
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-danger">Erreur de chargement</td></tr>`;
+            }
+        }
+
+        function renderMonitoredSeries() {
+            const tbody = document.getElementById('monitoredSeriesBody');
+
+            if (!monitoredSeriesData.length) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">
+                    <i class="bi bi-tv fs-1 mb-2 d-block"></i>
+                    Aucune série suivie. Cliquez sur "Ajouter" pour commencer.
+                </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = monitoredSeriesData.map(series => {
+                const statusBadge = getSeriesStatusBadge(series.status);
+                const monitorTypeLabel = getMonitorTypeLabel(series.monitor_type);
+
+                return `<tr>
+                    <td>
+                        ${series.poster_url
+                            ? `<img src="${series.poster_url}" alt="${series.title}" style="width:40px; height:60px; object-fit:cover; border-radius:4px;">`
+                            : `<div class="bg-secondary rounded d-flex align-items-center justify-content-center" style="width:40px; height:60px;"><i class="bi bi-film"></i></div>`
+                        }
+                    </td>
+                    <td>
+                        <strong>${series.title}</strong>
+                        ${series.year ? `<span class="text-muted">(${series.year})</span>` : ''}
+                        <br>
+                        <small class="text-muted">${monitorTypeLabel}</small>
+                    </td>
+                    <td><span class="badge bg-${series.media_type === 'anime' ? 'info' : 'secondary'}">${series.media_type}</span></td>
+                    <td><span class="badge bg-dark">${series.quality_preference}</span></td>
+                    <td><span class="badge bg-dark">${series.audio_preference.toUpperCase()}</span></td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            ${series.status === 'active'
+                                ? `<button class="btn btn-outline-warning" onclick="pauseSeries(${series.id})" title="Mettre en pause"><i class="bi bi-pause-fill"></i></button>`
+                                : `<button class="btn btn-outline-success" onclick="resumeSeries(${series.id})" title="Reprendre"><i class="bi bi-play-fill"></i></button>`
+                            }
+                            <button class="btn btn-outline-primary" onclick="refreshSeriesSchedule(${series.id})" title="Rafraîchir calendrier"><i class="bi bi-arrow-clockwise"></i></button>
+                            <button class="btn btn-outline-danger" onclick="removeSeries(${series.id})" title="Supprimer"><i class="bi bi-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function getSeriesStatusBadge(status) {
+            const badges = {
+                'active': '<span class="badge bg-success">Active</span>',
+                'paused': '<span class="badge bg-warning">En pause</span>',
+                'ended': '<span class="badge bg-secondary">Terminée</span>'
+            };
+            return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+        }
+
+        function getMonitorTypeLabel(type) {
+            const labels = {
+                'new_episodes': 'Nouveaux épisodes',
+                'vostfr_upgrade': 'Upgrade VOSTFR',
+                'both': 'Nouveaux + Upgrade'
+            };
+            return labels[type] || type;
+        }
+
+        async function pauseSeries(seriesId) {
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/series/${seriesId}/pause`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    showToast('Série mise en pause', 'success');
+                    refreshMonitoredSeries();
+                }
+            } catch (e) {
+                showToast('Erreur lors de la mise en pause', 'danger');
+            }
+        }
+
+        async function resumeSeries(seriesId) {
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/series/${seriesId}/resume`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    showToast('Monitoring repris', 'success');
+                    refreshMonitoredSeries();
+                }
+            } catch (e) {
+                showToast('Erreur lors de la reprise', 'danger');
+            }
+        }
+
+        async function refreshSeriesSchedule(seriesId) {
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/series/${seriesId}/refresh`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    const result = await response.json();
+                    showToast(result.message, 'success');
+                }
+            } catch (e) {
+                showToast('Erreur lors du rafraîchissement', 'danger');
+            }
+        }
+
+        async function removeSeries(seriesId) {
+            if (!confirm('Supprimer cette série du monitoring ?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/series/${seriesId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    showToast('Série retirée du monitoring', 'success');
+                    refreshMonitoredSeries();
+                    loadMonitoringStats();
+                }
+            } catch (e) {
+                showToast('Erreur lors de la suppression', 'danger');
+            }
+        }
+
+        // Calendar
+        async function refreshCalendar() {
+            const container = document.getElementById('calendarContent');
+            const daysAhead = parseInt(document.getElementById('calendarDaysFilter').value) || 14;
+
+            container.innerHTML = `<div class="text-center py-4">
+                <div class="spinner-border spinner-border-sm text-primary"></div>
+                <span class="ms-2 text-muted">Chargement du calendrier...</span>
+            </div>`;
+
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/calendar?days_back=7&days_ahead=${daysAhead}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    calendarData = await response.json();
+                    renderCalendar();
+
+                    // Update upcoming count
+                    const upcoming = calendarData.filter(e => !e.is_aired).length;
+                    document.getElementById('monitoringUpcomingEpisodes').textContent = upcoming;
+                }
+            } catch (e) {
+                console.error('Error loading calendar:', e);
+                container.innerHTML = `<div class="text-center py-4 text-danger">Erreur de chargement</div>`;
+            }
+        }
+
+        function renderCalendar() {
+            const container = document.getElementById('calendarContent');
+
+            if (!calendarData.length) {
+                container.innerHTML = `<div class="text-center py-4 text-muted">
+                    <i class="bi bi-calendar-x fs-1 mb-2 d-block"></i>
+                    Aucun épisode dans cette période
+                </div>`;
+                return;
+            }
+
+            // Group by date
+            const grouped = {};
+            calendarData.forEach(ep => {
+                const date = ep.air_date.split('T')[0];
+                if (!grouped[date]) grouped[date] = [];
+                grouped[date].push(ep);
+            });
+
+            let html = '<div class="row g-3">';
+
+            Object.keys(grouped).sort().forEach(date => {
+                const dateObj = new Date(date);
+                const today = new Date().toISOString().split('T')[0];
+                const isToday = date === today;
+                const isPast = date < today;
+
+                html += `<div class="col-12">
+                    <div class="p-3 rounded ${isToday ? 'bg-primary bg-opacity-25' : isPast ? 'bg-dark' : 'bg-secondary bg-opacity-10'}">
+                        <h6 class="mb-2 ${isToday ? 'text-primary' : ''}"">
+                            <i class="bi bi-calendar-event me-2"></i>
+                            ${dateObj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                            ${isToday ? '<span class="badge bg-primary ms-2">Aujourd\'hui</span>' : ''}
+                        </h6>
+                        <div class="d-flex flex-wrap gap-2">`;
+
+                grouped[date].forEach(ep => {
+                    const statusColor = getEpisodeStatusColor(ep.status);
+                    html += `<div class="d-flex align-items-center gap-2 p-2 rounded bg-dark" style="min-width:250px;">
+                        ${ep.series_poster
+                            ? `<img src="${ep.series_poster}" style="width:30px; height:45px; object-fit:cover; border-radius:4px;">`
+                            : '<div class="bg-secondary rounded" style="width:30px; height:45px;"></div>'
+                        }
+                        <div class="flex-grow-1">
+                            <div class="fw-medium small">${ep.series_title}</div>
+                            <div class="text-muted small">${ep.episode_code}${ep.episode_title ? ' - ' + ep.episode_title : ''}</div>
+                        </div>
+                        <span class="badge bg-${statusColor}">${ep.status}</span>
+                    </div>`;
+                });
+
+                html += `</div></div></div>`;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function getEpisodeStatusColor(status) {
+            const colors = {
+                'upcoming': 'secondary',
+                'aired': 'info',
+                'searching': 'warning',
+                'found': 'success',
+                'pending_approval': 'warning',
+                'downloading': 'primary',
+                'completed': 'success',
+                'not_found': 'danger',
+                'skipped': 'dark'
+            };
+            return colors[status] || 'secondary';
+        }
+
+        // Pending Approvals
+        async function refreshPendingApprovals() {
+            const container = document.getElementById('pendingApprovalsContent');
+
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/episodes/pending`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    const episodes = await response.json();
+                    renderPendingApprovals(episodes);
+                }
+            } catch (e) {
+                console.error('Error loading pending approvals:', e);
+            }
+        }
+
+        function renderPendingApprovals(episodes) {
+            const container = document.getElementById('pendingApprovalsContent');
+
+            if (!episodes.length) {
+                container.innerHTML = `<div class="text-center py-4 text-muted">
+                    <i class="bi bi-check-circle fs-1 mb-2 d-block"></i>
+                    Aucun épisode en attente d'approbation
+                </div>`;
+                return;
+            }
+
+            container.innerHTML = `<div class="table-responsive">
+                <table class="table table-dark-custom">
+                    <thead>
+                        <tr>
+                            <th>Série</th>
+                            <th>Épisode</th>
+                            <th>Torrent trouvé</th>
+                            <th>Qualité</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${episodes.map(ep => `<tr>
+                            <td>Série #${ep.monitored_series_id}</td>
+                            <td><span class="badge bg-info">${ep.episode_code}</span></td>
+                            <td>
+                                <small class="text-break">${ep.found_torrent_name || 'N/A'}</small>
+                                <br>
+                                <small class="text-muted">${ep.found_torrent_size || ''} - ${ep.found_torrent_seeders || 0} seeders</small>
+                            </td>
+                            <td>${ep.found_torrent_quality || 'N/A'}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-success" onclick="approveEpisode(${ep.id})" title="Approuver">
+                                        <i class="bi bi-check-lg"></i>
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="skipEpisode(${ep.id})" title="Ignorer">
+                                        <i class="bi bi-skip-forward"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+        }
+
+        async function approveEpisode(episodeId) {
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/episodes/${episodeId}/approve`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    showToast('Épisode approuvé, téléchargement lancé', 'success');
+                    refreshPendingApprovals();
+                    loadMonitoringStats();
+                }
+            } catch (e) {
+                showToast('Erreur lors de l\'approbation', 'danger');
+            }
+        }
+
+        async function skipEpisode(episodeId) {
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/episodes/${episodeId}/skip`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    showToast('Épisode ignoré', 'info');
+                    refreshPendingApprovals();
+                }
+            } catch (e) {
+                showToast('Erreur', 'danger');
+            }
+        }
+
+        // Add Series Modal
+        function showAddSeriesModal() {
+            document.getElementById('seriesSearchInput').value = '';
+            document.getElementById('seriesSearchResults').style.display = 'none';
+            document.getElementById('selectedSeriesInfo').style.display = 'none';
+            document.getElementById('addSeriesBtn').disabled = true;
+
+            const modal = new bootstrap.Modal(document.getElementById('addSeriesModal'));
+            modal.show();
+        }
+
+        async function searchSeriesToAdd() {
+            const query = document.getElementById('seriesSearchInput').value.trim();
+            if (!query) return;
+
+            const resultsContainer = document.getElementById('seriesSearchResultsList');
+            document.getElementById('seriesSearchResults').style.display = 'block';
+            resultsContainer.innerHTML = `<div class="col-12 text-center py-3">
+                <div class="spinner-border spinner-border-sm text-primary"></div>
+            </div>`;
+
+            try {
+                // Search both series and anime
+                const response = await fetch(`${API_BASE}/search?query=${encodeURIComponent(query)}&media_type=all`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+
+                if (response.ok) {
+                    const results = await response.json();
+                    // Filter to only series and anime
+                    const seriesResults = results.filter(r => r.media_type === 'series' || r.media_type === 'anime');
+
+                    if (!seriesResults.length) {
+                        resultsContainer.innerHTML = `<div class="col-12 text-center text-muted py-3">Aucun résultat</div>`;
+                        return;
+                    }
+
+                    resultsContainer.innerHTML = seriesResults.slice(0, 10).map(result => `
+                        <div class="col-6 col-md-4 col-lg-3">
+                            <div class="p-2 rounded bg-dark cursor-pointer border border-transparent hover-border-primary"
+                                 onclick="selectSeriesResult(${JSON.stringify(result).replace(/"/g, '&quot;')})"
+                                 style="cursor:pointer;">
+                                ${result.poster_url
+                                    ? `<img src="${result.poster_url}" class="w-100 rounded mb-2" style="aspect-ratio:2/3; object-fit:cover;">`
+                                    : `<div class="w-100 bg-secondary rounded mb-2 d-flex align-items-center justify-content-center" style="aspect-ratio:2/3;"><i class="bi bi-film fs-3"></i></div>`
+                                }
+                                <div class="small fw-medium text-truncate">${result.title}</div>
+                                <div class="small text-muted">${result.year || ''} - ${result.media_type}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('Search error:', e);
+                resultsContainer.innerHTML = `<div class="col-12 text-center text-danger py-3">Erreur de recherche</div>`;
+            }
+        }
+
+        function selectSeriesResult(result) {
+            document.getElementById('selectedSeriesInfo').style.display = 'block';
+            document.getElementById('selectedSeriesPoster').src = result.poster_url || '';
+            document.getElementById('selectedSeriesTitle').textContent = result.title;
+            document.getElementById('selectedSeriesYear').textContent = result.year ? `(${result.year})` : '';
+
+            // Set hidden fields based on source
+            if (result.source === 'anilist') {
+                document.getElementById('selectedSeriesAnilistId').value = result.id;
+                document.getElementById('selectedSeriesTmdbId').value = '';
+            } else {
+                document.getElementById('selectedSeriesTmdbId').value = result.id;
+                document.getElementById('selectedSeriesAnilistId').value = '';
+            }
+
+            document.getElementById('selectedSeriesMediaType').value = result.media_type;
+            document.getElementById('selectedSeriesPosterUrl').value = result.poster_url || '';
+
+            document.getElementById('addSeriesBtn').disabled = false;
+        }
+
+        async function addSeriesToMonitoring() {
+            const title = document.getElementById('selectedSeriesTitle').textContent;
+            const tmdbId = document.getElementById('selectedSeriesTmdbId').value || null;
+            const anilistId = document.getElementById('selectedSeriesAnilistId').value || null;
+            const mediaType = document.getElementById('selectedSeriesMediaType').value;
+            const posterUrl = document.getElementById('selectedSeriesPosterUrl').value;
+            const yearText = document.getElementById('selectedSeriesYear').textContent;
+            const year = yearText ? parseInt(yearText.replace(/[()]/g, '')) : null;
+
+            const data = {
+                tmdb_id: tmdbId,
+                anilist_id: anilistId,
+                title: title,
+                year: year,
+                media_type: mediaType,
+                poster_url: posterUrl,
+                monitor_type: document.getElementById('addSeriesMonitorType').value,
+                quality_preference: document.getElementById('addSeriesQuality').value,
+                audio_preference: document.getElementById('addSeriesAudio').value
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/series`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    showToast(`${title} ajouté au monitoring`, 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('addSeriesModal')).hide();
+                    refreshMonitoredSeries();
+                    loadMonitoringStats();
+                } else {
+                    const err = await response.json();
+                    showToast(err.detail || 'Erreur', 'danger');
+                }
+            } catch (e) {
+                showToast('Erreur lors de l\'ajout', 'danger');
+            }
+        }
+
+        // Manual Tasks
+        async function triggerEpisodeCheck() {
+            showToast('Recherche des épisodes en cours...', 'info');
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/tasks/check-episodes`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    const result = await response.json();
+                    showToast(`Vérification terminée: ${result.results?.episodes_found || 0} épisodes trouvés`, 'success');
+                    loadMonitoringData();
+                }
+            } catch (e) {
+                showToast('Erreur lors de la vérification', 'danger');
+            }
+        }
+
+        async function triggerAiredUpdate() {
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/tasks/update-aired`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    const result = await response.json();
+                    showToast(result.message, 'success');
+                }
+            } catch (e) {
+                showToast('Erreur', 'danger');
+            }
+        }
+
+        // Listen for calendar filter change
+        document.getElementById('calendarDaysFilter')?.addEventListener('change', refreshCalendar);
+
+        // Listen for calendar sub-tab shown
+        document.querySelector('[data-bs-target="#calendarPane"]')?.addEventListener('shown.bs.tab', refreshCalendar);
+
+        // =========================================================================
+        // ANALYSIS TAB FUNCTIONS
+        // =========================================================================
+
+        let currentAnalysisRunId = null;
+        let analysisPollingInterval = null;
+        let allAnalysisResults = [];
+
+        // Load analysis data when tab is shown
+        document.querySelector('[data-bs-target="#analysisTab"]')?.addEventListener('shown.bs.tab', () => {
+            loadAnalysisSummary();
+            loadAnalysisResults();
+            loadAnalysisHistory();
+        });
+
+        async function loadAnalysisSummary() {
+            try {
+                const response = await fetch(`${API_BASE}/analysis/summary`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+                if (response.ok) {
+                    const summary = await response.json();
+                    document.getElementById('analysisHighCount').textContent = summary.by_severity?.high || 0;
+                    document.getElementById('analysisMediumCount').textContent = summary.by_severity?.medium || 0;
+                    document.getElementById('analysisLowCount').textContent = summary.by_severity?.low || 0;
+                    document.getElementById('analysisTotalCount').textContent = summary.total_issues || 0;
+
+                    // Update badge
+                    const badge = document.getElementById('analysisIssuesBadge');
+                    const total = summary.total_issues || 0;
+                    if (total > 0) {
+                        badge.textContent = total;
+                        badge.style.display = 'inline';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                console.error('Erreur chargement résumé analyse:', e);
+            }
+        }
+
+        async function loadAnalysisResults() {
+            try {
+                const analysisType = document.getElementById('filterAnalysisType')?.value || '';
+                const severity = document.getElementById('filterSeverity')?.value || '';
+
+                let url = `${API_BASE}/analysis/results?limit=100`;
+                if (analysisType) url += `&analysis_type=${analysisType}`;
+                if (severity) url += `&severity=${severity}`;
+
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+
+                if (response.ok) {
+                    allAnalysisResults = await response.json();
+                    filterAnalysisResults();
+                }
+            } catch (e) {
+                console.error('Erreur chargement résultats analyse:', e);
+            }
+        }
+
+        function filterAnalysisResults() {
+            const showDismissed = document.getElementById('showDismissed')?.checked || false;
+            const analysisType = document.getElementById('filterAnalysisType')?.value || '';
+            const severity = document.getElementById('filterSeverity')?.value || '';
+
+            let filtered = allAnalysisResults;
+
+            if (!showDismissed) {
+                filtered = filtered.filter(r => !r.is_dismissed);
+            }
+            if (analysisType) {
+                filtered = filtered.filter(r => r.analysis_type === analysisType);
+            }
+            if (severity) {
+                filtered = filtered.filter(r => r.severity === severity);
+            }
+
+            renderAnalysisResults(filtered);
+        }
+
+        function renderAnalysisResults(results) {
+            const tbody = document.getElementById('analysisResultsBody');
+            if (!tbody) return;
+
+            if (results.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <i class="bi bi-check-circle display-4"></i>
+                            <p class="mt-2 mb-0">Aucun problème détecté ou tous les problèmes ont été traités.</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = results.map(r => {
+                const severityBadge = getSeverityBadge(r.severity);
+                const typeBadge = getAnalysisTypeBadge(r.analysis_type);
+                const posterUrl = r.poster_url || 'https://via.placeholder.com/45x67?text=?';
+                const dismissedClass = r.is_dismissed ? 'opacity-50' : '';
+
+                return `
+                    <tr class="${dismissedClass}">
+                        <td>
+                            <img src="${posterUrl}" alt="${r.title}" class="rounded" style="width:45px;height:67px;object-fit:cover;">
+                        </td>
+                        <td>
+                            <strong>${r.title}</strong>
+                            ${r.year ? `<small class="text-muted">(${r.year})</small>` : ''}
+                            <br><small class="text-muted">${r.media_type}</small>
+                        </td>
+                        <td>${typeBadge}</td>
+                        <td>
+                            <small>${r.issue_description}</small>
+                            ${r.ai_reasoning ? `<br><small class="text-info"><i class="bi bi-robot"></i> ${r.ai_reasoning}</small>` : ''}
+                        </td>
+                        <td>${severityBadge}</td>
+                        <td><small>${r.recommended_action}</small></td>
+                        <td>
+                            ${r.is_dismissed ?
+                                `<span class="badge bg-secondary">Ignoré</span>` :
+                                `<div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-success" onclick="actionAnalysisResult(${r.id})" title="Créer une demande">
+                                        <i class="bi bi-plus-circle"></i>
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="dismissAnalysisResult(${r.id})" title="Ignorer">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>
+                                </div>`
+                            }
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function getSeverityBadge(severity) {
+            const badges = {
+                'high': '<span class="badge bg-danger">Haute</span>',
+                'medium': '<span class="badge bg-warning text-dark">Moyenne</span>',
+                'low': '<span class="badge bg-success">Basse</span>'
+            };
+            return badges[severity] || `<span class="badge bg-secondary">${severity}</span>`;
+        }
+
+        function getAnalysisTypeBadge(type) {
+            const types = {
+                'missing_collection': '<span class="badge bg-info">Collection</span>',
+                'low_quality': '<span class="badge bg-warning text-dark">Qualité</span>',
+                'bad_codec': '<span class="badge bg-secondary">Codec</span>',
+                'vostfr_upgradable': '<span class="badge bg-primary">VOSTFR</span>',
+                'missing_episodes': '<span class="badge bg-danger">Épisodes</span>'
+            };
+            return types[type] || `<span class="badge bg-secondary">${type}</span>`;
+        }
+
+        async function loadAnalysisHistory() {
+            try {
+                const response = await fetch(`${API_BASE}/analysis/runs?limit=10`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+
+                if (response.ok) {
+                    const runs = await response.json();
+                    renderAnalysisHistory(runs);
+                }
+            } catch (e) {
+                console.error('Erreur chargement historique analyses:', e);
+            }
+        }
+
+        function renderAnalysisHistory(runs) {
+            const tbody = document.getElementById('analysisHistoryBody');
+            if (!tbody) return;
+
+            if (runs.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            Aucune analyse effectuée
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = runs.map(run => {
+                const statusBadge = getRunStatusBadge(run.status);
+                const date = run.started_at ? new Date(run.started_at).toLocaleString('fr-FR') : '-';
+                const duration = run.duration_seconds ? `${run.duration_seconds}s` : '-';
+                const types = run.analysis_types ? run.analysis_types.join(', ') : 'Tous';
+
+                return `
+                    <tr>
+                        <td>${date}</td>
+                        <td>${statusBadge}</td>
+                        <td><small>${types}</small></td>
+                        <td>${run.items_analyzed}/${run.total_items_to_analyze}</td>
+                        <td>
+                            <span class="badge bg-info">${run.issues_found}</span>
+                        </td>
+                        <td>${duration}</td>
+                        <td>
+                            <button class="btn btn-outline-primary btn-sm" onclick="viewAnalysisRun('${run.id}')">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function getRunStatusBadge(status) {
+            const badges = {
+                'running': '<span class="badge bg-primary"><i class="bi bi-arrow-repeat spin me-1"></i>En cours</span>',
+                'completed': '<span class="badge bg-success">Terminé</span>',
+                'failed': '<span class="badge bg-danger">Échec</span>',
+                'cancelled': '<span class="badge bg-secondary">Annulé</span>'
+            };
+            return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+        }
+
+        async function startAnalysis() {
+            const btn = document.getElementById('startAnalysisBtn');
+            const progressDiv = document.getElementById('analysisProgress');
+
+            // Get selected analysis types
+            const analysisTypesSelect = document.getElementById('analysisTypes');
+            const analysisTypes = Array.from(analysisTypesSelect.selectedOptions).map(o => o.value);
+
+            // Get selected media types
+            const mediaTypesSelect = document.getElementById('analysisMediaTypes');
+            const mediaTypes = Array.from(mediaTypesSelect.selectedOptions).map(o => o.value);
+
+            if (analysisTypes.length === 0) {
+                showToast('Sélectionnez au moins un type d\'analyse', 'warning');
+                return;
+            }
+
+            btn.disabled = true;
+            progressDiv.style.display = 'block';
+
+            try {
+                const response = await fetch(`${API_BASE}/analysis/run`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    },
+                    body: JSON.stringify({
+                        analysis_types: analysisTypes,
+                        media_types: mediaTypes
+                    })
+                });
+
+                if (response.ok) {
+                    const run = await response.json();
+                    currentAnalysisRunId = run.id;
+                    showToast('Analyse démarrée', 'success');
+                    startAnalysisPolling();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Erreur lors du lancement', 'danger');
+                    btn.disabled = false;
+                    progressDiv.style.display = 'none';
+                }
+            } catch (e) {
+                showToast('Erreur réseau', 'danger');
+                btn.disabled = false;
+                progressDiv.style.display = 'none';
+            }
+        }
+
+        function startAnalysisPolling() {
+            if (analysisPollingInterval) {
+                clearInterval(analysisPollingInterval);
+            }
+
+            analysisPollingInterval = setInterval(async () => {
+                if (!currentAnalysisRunId) {
+                    clearInterval(analysisPollingInterval);
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${API_BASE}/analysis/runs/${currentAnalysisRunId}`, {
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                    });
+
+                    if (response.ok) {
+                        const run = await response.json();
+                        updateAnalysisProgress(run);
+
+                        if (run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled') {
+                            clearInterval(analysisPollingInterval);
+                            analysisPollingInterval = null;
+                            currentAnalysisRunId = null;
+
+                            document.getElementById('startAnalysisBtn').disabled = false;
+                            setTimeout(() => {
+                                document.getElementById('analysisProgress').style.display = 'none';
+                            }, 2000);
+
+                            // Reload data
+                            loadAnalysisSummary();
+                            loadAnalysisResults();
+                            loadAnalysisHistory();
+
+                            if (run.status === 'completed') {
+                                showToast(`Analyse terminée: ${run.issues_found} problèmes détectés`, 'success');
+                            } else if (run.status === 'failed') {
+                                showToast(`Analyse échouée: ${run.error_message}`, 'danger');
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('Erreur polling analyse:', e);
+                }
+            }, 2000);
+        }
+
+        function updateAnalysisProgress(run) {
+            const progressBar = document.getElementById('analysisProgressBar');
+            const phaseText = document.getElementById('analysisPhase');
+
+            if (progressBar) {
+                progressBar.style.width = `${run.progress_percent}%`;
+                progressBar.textContent = `${run.progress_percent}%`;
+            }
+
+            if (phaseText) {
+                phaseText.textContent = run.current_phase || run.status_message || 'En cours...';
+            }
+        }
+
+        async function dismissAnalysisResult(resultId) {
+            if (!confirm('Ignorer ce résultat ?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/analysis/results/${resultId}/dismiss`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    },
+                    body: JSON.stringify({})
+                });
+
+                if (response.ok) {
+                    showToast('Résultat ignoré', 'success');
+                    loadAnalysisSummary();
+                    loadAnalysisResults();
+                } else {
+                    showToast('Erreur', 'danger');
+                }
+            } catch (e) {
+                showToast('Erreur réseau', 'danger');
+            }
+        }
+
+        async function actionAnalysisResult(resultId) {
+            // Find the result to get details
+            const result = allAnalysisResults.find(r => r.id === resultId);
+            if (!result) {
+                showToast('Résultat non trouvé', 'danger');
+                return;
+            }
+
+            // For now, just show a message - in a full implementation,
+            // this would open a modal to create a media request
+            const confirmMsg = `Créer une demande pour "${result.title}" ?\n\nAction recommandée: ${result.recommended_action}`;
+            if (!confirm(confirmMsg)) return;
+
+            // TODO: Open create request modal with pre-filled data
+            showToast('Fonctionnalité à implémenter: création de demande depuis l\'analyse', 'info');
+        }
+
+        async function viewAnalysisRun(runId) {
+            try {
+                const response = await fetch(`${API_BASE}/analysis/runs/${runId}/results`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+                });
+
+                if (response.ok) {
+                    const results = await response.json();
+                    allAnalysisResults = results;
+                    filterAnalysisResults();
+                    showToast(`Affichage des ${results.length} résultats de cette analyse`, 'info');
+                }
+            } catch (e) {
+                showToast('Erreur chargement', 'danger');
+            }
+        }
     </script>
 </body>
 

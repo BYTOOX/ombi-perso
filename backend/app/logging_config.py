@@ -25,7 +25,7 @@ LOG_BUFFER_SIZE = 500
 LOG_MODULES = {
     "api": ["app.api", "app.main", "uvicorn"],
     "pipeline": ["app.services.pipeline"],
-    "ai": ["app.services.ai_agent"],  # Dedicated AI logs for prompt debugging
+    "ai": ["app.services.ai_provider"],  # Dedicated AI logs for prompt debugging
     "services": [
         "app.services.torrent_scraper",
         "app.services.downloader",

@@ -7,20 +7,15 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from argon2 import PasswordHasher
 
-from ...dependencies import (
-    get_async_db,
-    get_downloader_service,
-    get_plex_manager_service,
-    get_ai_agent_service,
-    get_settings_service,
-    get_file_renamer_service,
-    get_title_resolver_service
-)
-from ...models.user import User, UserRole, UserStatus
-from ...models.request import MediaRequest, RequestStatus
-from ...models.download import Download, DownloadStatus
+from ...models import get_db, User, MediaRequest, Download
+from ...models.user import UserRole, UserStatus
+from ...models.request import RequestStatus
+from ...models.download import DownloadStatus
 from ...schemas.user import UserResponse, UserUpdate, AdminUserCreate
 from ...schemas.download import DownloadStats
+from ...services.downloader import get_downloader_service
+from ...services.plex_manager import get_plex_manager_service
+from ...services.ai_provider import get_ai_service
 from ...config import get_settings
 from ...logging_config import InMemoryLogHandler, get_available_modules, LOG_MODULES
 from .auth import get_current_admin
@@ -38,7 +33,7 @@ ph = PasswordHasher()
 async def list_users(
     status: Optional[UserStatus] = None,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Lister tous les utilisateurs. Optionally filter by status."""
     query = select(User).order_by(User.created_at.desc())
@@ -52,7 +47,7 @@ async def list_users(
 @router.get("/users/pending", response_model=List[UserResponse])
 async def list_pending_users(
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Lister les utilisateurs en attente d'approbation."""
     result = await db.execute(
@@ -66,7 +61,7 @@ async def list_pending_users(
 async def create_user(
     user_data: AdminUserCreate,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Créer un nouvel utilisateur (admin only). User is created as ACTIVE."""
     # Check if username exists
@@ -114,7 +109,7 @@ async def create_user(
 async def get_user(
     user_id: int,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Obtenir les détails d'un utilisateur."""
     result = await db.execute(select(User).where(User.id == user_id))
@@ -131,7 +126,7 @@ async def update_user(
     user_id: int,
     update_data: UserUpdate,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Mettre à jour un utilisateur."""
     result = await db.execute(select(User).where(User.id == user_id))
@@ -166,7 +161,7 @@ async def update_user(
 async def approve_user(
     user_id: int,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Approuver un utilisateur en attente."""
     result = await db.execute(select(User).where(User.id == user_id))
@@ -194,7 +189,7 @@ async def approve_user(
 async def reject_user(
     user_id: int,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Rejeter/désactiver un utilisateur."""
     result = await db.execute(select(User).where(User.id == user_id))
@@ -220,7 +215,7 @@ async def reject_user(
 async def delete_user(
     user_id: int,
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Supprimer un utilisateur."""
     if user_id == current_user.id:
@@ -248,7 +243,7 @@ async def delete_user(
 @router.get("/stats")
 async def get_stats(
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Obtenir les statistiques globales.
@@ -315,7 +310,7 @@ async def get_stats(
 @router.get("/downloads", response_model=DownloadStats)
 async def get_download_stats(
     current_user: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Obtenir les statistiques de téléchargement."""
     # From database
@@ -354,10 +349,7 @@ async def get_download_stats(
 
 @router.get("/health")
 async def health_check(
-    current_user: User = Depends(get_current_admin),
-    plex = Depends(get_plex_manager_service),
-    downloader = Depends(get_downloader_service),
-    ai = Depends(get_ai_agent_service)
+    current_user: User = Depends(get_current_admin)
 ):
     """
     Vérifier l'état de tous les services.
@@ -366,9 +358,13 @@ async def health_check(
     import asyncio
     from concurrent.futures import ThreadPoolExecutor
     
+    plex = get_plex_manager_service()
+    downloader = get_downloader_service()
+    ai = get_ai_service()
+
     # Run health checks in parallel with timeouts
     loop = asyncio.get_event_loop()
-    
+
     async def check_with_timeout(coro_or_func, timeout=2.0, is_sync=False):
         try:
             if is_sync:
@@ -384,28 +380,30 @@ async def health_check(
             return {"status": "timeout"}
         except Exception as e:
             return {"status": "error", "message": str(e)}
-    
+
     # Run all health checks in parallel
-    plex_result, qbit_result, ollama_result = await asyncio.gather(
+    plex_result, qbit_result, ai_result = await asyncio.gather(
         check_with_timeout(plex.health_check, is_sync=True),
         check_with_timeout(downloader.health_check, is_sync=True),
         check_with_timeout(ai.health_check(), is_sync=False),
         return_exceptions=True
     )
-    
+
     # Handle exceptions from gather
     if isinstance(plex_result, Exception):
         plex_result = {"status": "error", "message": str(plex_result)}
     if isinstance(qbit_result, Exception):
         qbit_result = {"status": "error", "message": str(qbit_result)}
-    if isinstance(ollama_result, Exception):
-        ollama_result = False
-    
+    if isinstance(ai_result, Exception):
+        ai_result = {"available": False, "error": str(ai_result)}
+
     return {
         "plex": plex_result,
         "qbittorrent": qbit_result,
-        "ollama": {
-            "status": "ok" if ollama_result is True else "error"
+        "ai": {
+            "status": "ok" if ai_result.get("available") else "error",
+            "models": ai_result.get("models", []),
+            "error": ai_result.get("error")
         },
         "database": {"status": "ok"}
     }
@@ -413,11 +411,13 @@ async def health_check(
 
 @router.get("/config")
 async def get_config(
-    current_user: User = Depends(get_current_admin),
-    renamer = Depends(get_file_renamer_service)
+    current_user: User = Depends(get_current_admin)
 ):
     """Obtenir la configuration actuelle (sans secrets)."""
-    library_paths = await renamer.verify_library_paths()
+    from ...services.file_renamer import get_file_renamer_service
+    
+    renamer = get_file_renamer_service()
+    library_paths = renamer.verify_library_paths()
     
     return {
         "app_name": settings.app_name,
@@ -480,29 +480,31 @@ async def get_plex_libraries(
 
 @router.get("/settings/paths")
 async def get_path_settings(
-    current_user: User = Depends(get_current_admin),
-    settings_service = Depends(get_settings_service)
+    current_user: User = Depends(get_current_admin)
 ):
     """
     Obtenir la configuration des chemins (download_path, library_paths).
     Retourne les chemins avec leur état de validation.
     """
-    return await settings_service.get_all_path_settings()
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    return service.get_all_path_settings()
 
 
 @router.put("/settings/paths")
 async def update_path_settings(
     download_path: str = Query(..., description="Chemin de téléchargement"),
     library_paths: str = Query(..., description="JSON des chemins de librairie"),
-    current_user: User = Depends(get_current_admin),
-    settings_service = Depends(get_settings_service)
+    current_user: User = Depends(get_current_admin)
 ):
     """
     Mettre à jour la configuration des chemins.
     Sauvegarde en base de données.
     """
     import json
-
+    from ...services.settings_service import get_settings_service
+    
     # Parse library_paths from JSON string
     try:
         parsed_library_paths = json.loads(library_paths)
@@ -511,36 +513,39 @@ async def update_path_settings(
             status_code=400,
             detail=f"Invalid JSON for library_paths: {str(e)}"
         )
-
-    result = await settings_service.update_all_path_settings(download_path, parsed_library_paths)
-
+    
+    service = get_settings_service()
+    result = service.update_all_path_settings(download_path, parsed_library_paths)
+    
     if not result.get("success"):
         raise HTTPException(
             status_code=400,
             detail=result.get("errors", ["Erreur de validation"])
         )
-
+    
     return result
 
 
 @router.get("/filesystem/browse")
 async def browse_filesystem(
     path: str = Query("/", description="Chemin du dossier à parcourir"),
-    current_user: User = Depends(get_current_admin),
-    settings_service = Depends(get_settings_service)
+    current_user: User = Depends(get_current_admin)
 ):
     """
     Parcourir le système de fichiers pour le file browser.
     Retourne uniquement les dossiers (pas les fichiers).
     """
-    result = settings_service.browse_directory(path)
-
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    result = service.browse_directory(path)
+    
     if result.get("error"):
         raise HTTPException(
             status_code=400,
             detail=result.get("error")
         )
-
+    
     return result
 
 
@@ -612,25 +617,29 @@ async def get_logs(
 
 @router.get("/settings/rename")
 async def get_rename_settings(
-    current_user: User = Depends(get_current_admin),
-    settings_service = Depends(get_settings_service)
+    current_user: User = Depends(get_current_admin)
 ):
     """
     Obtenir la configuration de renommage des fichiers.
     """
-    return settings_service.get_rename_settings()
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    return service.get_rename_settings()
 
 
 @router.put("/settings/rename")
 async def update_rename_settings(
     settings: dict,
-    current_user: User = Depends(get_current_admin),
-    settings_service = Depends(get_settings_service)
+    current_user: User = Depends(get_current_admin)
 ):
     """
     Mettre à jour la configuration de renommage.
     """
-    return settings_service.update_rename_settings(settings)
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    return service.update_rename_settings(settings)
 
 
 @router.post("/settings/rename/preview")
@@ -639,14 +648,17 @@ async def preview_rename(
     media_type: str = Query(..., description="Type: movie, series, anime"),
     tmdb_id: Optional[int] = Query(None, description="TMDB ID si connu"),
     tvdb_id: Optional[int] = Query(None, description="TVDB ID si connu"),
-    current_user: User = Depends(get_current_admin),
-    settings_service = Depends(get_settings_service),
-    resolver = Depends(get_title_resolver_service)
+    current_user: User = Depends(get_current_admin)
 ):
     """
     Prévisualiser le renommage d'un fichier sans l'appliquer.
     Utile pour tester les paramètres de renommage.
     """
+    from ...services.title_resolver import get_title_resolver_service
+    from ...services.settings_service import get_settings_service
+    
+    resolver = get_title_resolver_service()
+    settings = get_settings_service()
     
     warnings = []
     
@@ -663,11 +675,11 @@ async def preview_rename(
     
     # Get format template
     if media_type == "movie":
-        template = settings_service.get_movie_format()
+        template = settings.get_movie_format()
     elif media_type == "anime":
-        template = settings_service.get_anime_format()
+        template = settings.get_anime_format()
     else:
-        template = settings_service.get_series_format()
+        template = settings.get_series_format()
     
     # Extract season/episode if series/anime
     season, episode = None, None
@@ -706,7 +718,7 @@ async def preview_rename(
         warnings.append(f"Erreur de format: {str(e)}")
     
     # Add IDs if configured
-    rename_settings = settings_service.get_rename_settings()
+    rename_settings = settings.get_rename_settings()
     id_suffix = ""
     if rename_settings.get("include_tmdb_id") and resolved.get("tmdb_id"):
         id_suffix += f" {{tmdb-{resolved['tmdb_id']}}}"
@@ -758,13 +770,15 @@ async def test_rename(
 @router.get("/settings/rename/mappings")
 async def get_title_mappings(
     media_type: Optional[str] = Query(None, description="Filtrer par type"),
-    current_user: User = Depends(get_current_admin),
-    settings_service = Depends(get_settings_service)
+    current_user: User = Depends(get_current_admin)
 ):
     """
     Obtenir tous les mappings de titres manuels.
     """
-    return {"mappings": settings_service.get_title_mappings(media_type)}
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    return {"mappings": service.get_title_mappings(media_type)}
 
 
 @router.post("/settings/rename/mappings")
@@ -775,13 +789,15 @@ async def add_title_mapping(
     tmdb_id: Optional[int] = Query(None),
     tvdb_id: Optional[int] = Query(None),
     year: Optional[int] = Query(None),
-    current_user: User = Depends(get_current_admin),
-    settings_service = Depends(get_settings_service)
+    current_user: User = Depends(get_current_admin)
 ):
     """
     Ajouter un mapping de titre manuel.
     """
-    return settings_service.add_title_mapping(
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    return service.add_title_mapping(
         pattern=pattern,
         plex_title=plex_title,
         media_type=media_type,
@@ -794,16 +810,18 @@ async def add_title_mapping(
 @router.delete("/settings/rename/mappings/{mapping_id}")
 async def delete_title_mapping(
     mapping_id: int,
-    current_user: User = Depends(get_current_admin),
-    settings_service = Depends(get_settings_service)
+    current_user: User = Depends(get_current_admin)
 ):
     """
     Supprimer un mapping de titre.
     """
-    success = settings_service.remove_title_mapping(mapping_id)
-
+    from ...services.settings_service import get_settings_service
+    
+    service = get_settings_service()
+    success = service.remove_title_mapping(mapping_id)
+    
     if not success:
         raise HTTPException(status_code=404, detail="Mapping non trouvé")
-
+    
     return {"message": "Mapping supprimé"}
 

@@ -17,7 +17,7 @@ from ..models.request import MediaRequest, RequestStatus, MediaType
 from ..models.download import Download, DownloadStatus
 from ..schemas.media import MediaSearchResult, TorrentResult
 from .torrent_scraper import get_torrent_scraper_service
-from .ai_agent import get_ai_agent_service
+from .ai_provider import get_ai_service
 from .downloader import get_downloader_service
 from .file_renamer import get_file_renamer_service
 from .plex_manager import get_plex_manager_service
@@ -41,7 +41,7 @@ class RequestPipelineService:
     
     def __init__(self):
         self.scraper = get_torrent_scraper_service()
-        self.ai = get_ai_agent_service()
+        self.ai = get_ai_service()
         self.downloader = get_downloader_service()
         self.renamer = get_file_renamer_service()
         self.plex = get_plex_manager_service()
