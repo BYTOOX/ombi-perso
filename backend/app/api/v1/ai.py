@@ -15,7 +15,6 @@ from pydantic import BaseModel, Field
 
 from ...models.user import User
 from ...services.ai_provider import (
-    AIConfig,
     AINotConfiguredError,
     ProviderType,
     get_ai_service,

@@ -4,15 +4,12 @@ VOSTFR Upgrade Service for automatic replacement of VOSTFR content with MULTI ve
 Scans Plex library for VOSTFR-only content and searches for MULTI replacements.
 Supports movies, series, and anime.
 """
-import asyncio
 import logging
 import re
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 from typing import List, Optional, Dict, Any
 
 from sqlalchemy import select, and_
-from sqlalchemy.orm import selectinload
 
 from ..models.database import AsyncSessionLocal
 from ..models.upgrade_candidate import UpgradeCandidate, UpgradeStatus

@@ -16,6 +16,7 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..models.database import SessionLocal
 from ..models.system_settings import SystemSettings
 
 logger = logging.getLogger(__name__)
@@ -445,19 +446,33 @@ def init_default_settings():
     Initialize default settings in database if not present.
     Called during app startup.
     """
-    service = get_settings_service()
-    
     with SessionLocal() as db:
-        # Check if settings exist
-        existing = db.query(SystemSettings).first()
-        
-        if not existing:
+        # Check if download_path setting exists
+        existing_download = db.query(SystemSettings).filter(
+            SystemSettings.key == "download_path"
+        ).first()
+
+        existing_library = db.query(SystemSettings).filter(
+            SystemSettings.key == "library_paths"
+        ).first()
+
+        if not existing_download or not existing_library:
             logger.info("Initializing default path settings in database...")
-            
-            # Set defaults
-            service.set_download_path(DEFAULT_DOWNLOAD_PATH)
-            service.set_library_paths(DEFAULT_LIBRARY_PATHS)
-            
+
+            # Set download_path default
+            if not existing_download:
+                setting = SystemSettings(key="download_path", value=DEFAULT_DOWNLOAD_PATH)
+                db.add(setting)
+
+            # Set library_paths default
+            if not existing_library:
+                setting = SystemSettings(
+                    key="library_paths",
+                    value=json.dumps(DEFAULT_LIBRARY_PATHS, ensure_ascii=False)
+                )
+                db.add(setting)
+
+            db.commit()
             logger.info("✓ Default path settings initialized")
 
 

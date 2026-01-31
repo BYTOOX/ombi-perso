@@ -4,7 +4,7 @@ Tracks analysis runs and individual issues found in the Plex library.
 """
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, List
 import uuid
 
 from sqlalchemy import String, Text, DateTime, Integer, ForeignKey, Boolean, JSON

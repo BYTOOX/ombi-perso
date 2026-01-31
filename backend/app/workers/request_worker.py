@@ -64,15 +64,6 @@ def process_request_task(self, request_id: int) -> Dict[str, Any]:
 
                 # 2. Initialize services with DI
                 # Import here to avoid circular imports
-                from ..dependencies import (
-                    get_torrent_scraper_service,
-                    get_ai_agent_service,
-                    get_downloader_service,
-                    get_file_renamer_service,
-                    get_plex_manager_service,
-                    get_notification_service,
-                    get_settings_service,
-                )
                 from ..services.settings_service import SettingsService
                 from ..services.torrent_scraper import TorrentScraperService
                 from ..services.ai_agent import AIAgentService
@@ -86,9 +77,9 @@ def process_request_task(self, request_id: int) -> Dict[str, Any]:
                 scraper = TorrentScraperService(settings_service)
                 ai_agent = AIAgentService()
                 downloader = DownloaderService()
-                renamer = FileRenamerService(settings_service, None)  # TODO: title resolver
-                plex_manager = PlexManagerService(settings_service)
-                notifier = NotificationService()
+                _renamer = FileRenamerService(settings_service, None)  # TODO: title resolver
+                _plex_manager = PlexManagerService(settings_service)
+                _notifier = NotificationService()
 
                 # 3. Search for torrents
                 logger.info(f"Searching torrents for: {request.title}")
@@ -155,7 +146,7 @@ def process_request_task(self, request_id: int) -> Dict[str, Any]:
                     request.status = RequestStatus.FAILED
                     request.error_message = str(e)
                     await db.commit()
-                except:
+                except Exception:
                     pass
 
                 # Retry on temporary failures
@@ -199,12 +190,6 @@ def complete_request_task(request_id: int, download_path: str) -> Dict[str, Any]
                 logger.info(f"Completing request {request_id}: {request.title}")
 
                 # Initialize services
-                from ..dependencies import (
-                    get_file_renamer_service,
-                    get_plex_manager_service,
-                    get_notification_service,
-                    get_settings_service,
-                )
                 from ..services.settings_service import SettingsService
                 from ..services.file_renamer import FileRenamerService
                 from ..services.plex_manager import PlexManagerService
@@ -212,7 +197,7 @@ def complete_request_task(request_id: int, download_path: str) -> Dict[str, Any]
 
                 settings_service = SettingsService(db)
                 renamer = FileRenamerService(settings_service, None)
-                plex_manager = PlexManagerService(settings_service)
+                _plex_manager = PlexManagerService(settings_service)
                 notifier = NotificationService()
 
                 # 1. Rename and organize files

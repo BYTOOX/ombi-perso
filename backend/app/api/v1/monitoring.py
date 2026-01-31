@@ -14,7 +14,6 @@ from ...models.monitored_series import (
     AudioPreference,
     MonitoringStatus
 )
-from ...models.episode_schedule import EpisodeStatus
 from ...services.release_monitor_service import get_release_monitor_service
 from .auth import get_current_admin
 

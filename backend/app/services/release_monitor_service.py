@@ -9,7 +9,6 @@ Key features:
 - Send Discord notifications with approval links
 - Track download status
 """
-import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any

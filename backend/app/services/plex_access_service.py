@@ -5,7 +5,7 @@ Verifies that a user has access to the configured Plex server
 by checking the plex.tv/api/v2/resources endpoint.
 """
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import httpx
 

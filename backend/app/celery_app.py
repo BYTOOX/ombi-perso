@@ -124,8 +124,8 @@ celery_app.conf.update(
 # CELERY SIGNALS (for monitoring)
 # =============================================================================
 
-from celery.signals import task_prerun, task_postrun, task_failure
-import logging
+from celery.signals import task_prerun, task_postrun, task_failure  # noqa: E402
+import logging  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

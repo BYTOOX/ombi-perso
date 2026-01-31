@@ -10,11 +10,10 @@ from typing import Dict, Any, Optional, List
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..models.database import SessionLocal, AsyncSessionLocal
-from ..models.service_config import ServiceConfiguration, ServiceName, HealthStatus
+from ..models.service_config import ServiceConfiguration, ServiceName
 
 logger = logging.getLogger(__name__)
 

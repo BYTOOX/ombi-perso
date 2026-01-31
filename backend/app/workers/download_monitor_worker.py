@@ -9,7 +9,7 @@ This worker:
 """
 import asyncio
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 from datetime import datetime
 
 from ..celery_app import celery_app

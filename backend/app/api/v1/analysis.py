@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ...models import User
-from ...models.library_analysis import AnalysisType, Severity, AnalysisRunStatus
+from ...models.library_analysis import AnalysisType, Severity
 from ...services.library_analysis_service import get_library_analysis_service
 from .auth import get_current_admin
 

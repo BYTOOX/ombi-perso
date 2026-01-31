@@ -290,7 +290,6 @@ def cleanup_temp_files_task() -> Dict[str, Any]:
         Dict with cleanup statistics
     """
     try:
-        import os
         import shutil
         from pathlib import Path
 

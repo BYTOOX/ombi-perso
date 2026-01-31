@@ -7,7 +7,6 @@ Uses APScheduler to run periodic tasks:
 - Library analysis every Sunday at 3 AM
 """
 import logging
-from datetime import datetime
 from typing import Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler

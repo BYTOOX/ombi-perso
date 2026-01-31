@@ -4,7 +4,7 @@ Plex integration service for library management and notifications.
 import logging
 from typing import Optional, List, Dict, Any
 from plexapi.server import PlexServer
-from plexapi.exceptions import NotFound, Unauthorized
+from plexapi.exceptions import Unauthorized
 
 from ..config import Settings
 

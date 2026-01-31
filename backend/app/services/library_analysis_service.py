@@ -10,13 +10,11 @@ Analyzes the library for:
 """
 import asyncio
 import logging
-import re
 import uuid
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
 from sqlalchemy import select, and_
-from sqlalchemy.orm import selectinload
 
 from ..models.database import AsyncSessionLocal
 from ..models.library_analysis import (
@@ -27,7 +25,6 @@ from ..models.library_analysis import (
     AnalysisRunStatus
 )
 from .service_config_service import get_service_config_service
-from .llama_cpp_service import get_llama_cpp_service
 from .notifications import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -353,7 +350,7 @@ class LibraryAnalysisService:
             if severity:
                 query = query.where(LibraryAnalysisResult.severity == severity)
             if not include_dismissed:
-                query = query.where(LibraryAnalysisResult.is_dismissed == False)
+                query = query.where(LibraryAnalysisResult.is_dismissed.is_(False))
 
             query = query.order_by(
                 LibraryAnalysisResult.severity.desc(),
@@ -372,7 +369,7 @@ class LibraryAnalysisService:
         """Get latest analysis results across all runs."""
         async with AsyncSessionLocal() as session:
             query = select(LibraryAnalysisResult).where(
-                LibraryAnalysisResult.is_dismissed == False
+                LibraryAnalysisResult.is_dismissed.is_(False)
             )
 
             if analysis_type:
@@ -451,8 +448,8 @@ class LibraryAnalysisService:
                 select(LibraryAnalysisResult)
                 .where(
                     and_(
-                        LibraryAnalysisResult.is_dismissed == False,
-                        LibraryAnalysisResult.is_actioned == False
+                        LibraryAnalysisResult.is_dismissed.is_(False),
+                        LibraryAnalysisResult.is_actioned.is_(False)
                     )
                 )
             )
