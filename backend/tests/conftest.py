@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32chars"
 os.environ["DATABASE_URL"] = "sqlite:///./test_db.db"  # Simple file-based for app compatibility
 os.environ["DEBUG"] = "false"
+os.environ["LOG_DIR"] = "./test_logs"  # Use local directory for test logs
 
 import httpx
 from fastapi import FastAPI

@@ -2,21 +2,24 @@
 Centralized logging configuration with file handlers and module separation.
 
 Logs are written to:
-- /app/data/logs/all.log - All logs
-- /app/data/logs/api.log - API endpoints logs  
+- /app/data/logs/all.log - All logs (Docker)
+- /app/data/logs/api.log - API endpoints logs
 - /app/data/logs/pipeline.log - Request pipeline logs
 - /app/data/logs/services.log - Services logs (torrent, plex, etc)
+
+Configurable via LOG_DIR environment variable.
 """
 import logging
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from typing import Dict, List, Optional
 from collections import deque
 
-# Log storage directory
-LOG_DIR = Path("/app/data/logs")
+# Log storage directory (configurable via env var, defaults to Docker path)
+LOG_DIR = Path(os.environ.get("LOG_DIR", "/app/data/logs"))
 
 # In-memory log buffer for quick access (last N entries per module)
 LOG_BUFFER_SIZE = 500
