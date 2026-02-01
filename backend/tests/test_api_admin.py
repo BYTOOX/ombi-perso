@@ -170,22 +170,17 @@ class TestAdminHealth:
 
     @pytest.mark.asyncio
     async def test_admin_health_check(self, client: AsyncClient, admin_token):
-        """Admin health endpoint checks all services."""
-        with patch("app.api.v1.admin.get_plex_manager_service") as mock_plex, \
-             patch("app.api.v1.admin.get_downloader_service") as mock_dl, \
-             patch("app.api.v1.admin.get_ai_service") as mock_ai:
-
-            mock_plex_instance = MagicMock()
-            mock_plex_instance.health_check.return_value = {"status": "ok"}
-            mock_plex.return_value = mock_plex_instance
-
-            mock_dl_instance = MagicMock()
-            mock_dl_instance.health_check.return_value = {"status": "ok", "connected": True}
-            mock_dl.return_value = mock_dl_instance
-
-            mock_ai_instance = MagicMock()
-            mock_ai_instance.health_check = AsyncMock(return_value={"available": True})
-            mock_ai.return_value = mock_ai_instance
+        """Admin health endpoint uses HealthCheckService."""
+        with patch("app.api.v1.admin.get_healthcheck_service") as mock_hc:
+            mock_result = MagicMock(status="ok", message="OK", latency_ms=50)
+            mock_results = {
+                "plex": mock_result,
+                "qbittorrent": mock_result,
+                "ai": mock_result,
+            }
+            mock_instance = MagicMock()
+            mock_instance.check_all_services = AsyncMock(return_value=mock_results)
+            mock_hc.return_value = mock_instance
 
             response = await client.get(
                 "/api/v1/admin/health",
@@ -194,8 +189,59 @@ class TestAdminHealth:
 
         assert response.status_code == 200
         data = response.json()
-        # Check structure (actual field names may vary)
         assert isinstance(data, dict)
+        # Database always present
+        assert "database" in data
+        assert data["database"]["status"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_admin_health_returns_all_services(self, client: AsyncClient, admin_token):
+        """Admin health returns all services from HealthCheckService."""
+        with patch("app.api.v1.admin.get_healthcheck_service") as mock_hc:
+            mock_result = MagicMock(status="ok", message="OK", latency_ms=50)
+            mock_results = {
+                "plex": mock_result,
+                "qbittorrent": mock_result,
+                "ai": mock_result,
+                "tmdb": mock_result,
+                "ygg": mock_result,
+                "discord": mock_result,
+                "flaresolverr": mock_result
+            }
+            mock_instance = MagicMock()
+            mock_instance.check_all_services = AsyncMock(return_value=mock_results)
+            mock_hc.return_value = mock_instance
+
+            response = await client.get(
+                "/api/v1/admin/health",
+                headers=auth_headers(admin_token)
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # All services must be present
+        for service in ["plex", "qbittorrent", "ai", "database"]:
+            assert service in data
+
+    @pytest.mark.asyncio
+    async def test_admin_health_no_ollama_key(self, client: AsyncClient, admin_token):
+        """Admin health should return 'ai', not 'ollama'."""
+        with patch("app.api.v1.admin.get_healthcheck_service") as mock_hc:
+            mock_instance = MagicMock()
+            mock_instance.check_all_services = AsyncMock(return_value={
+                "ai": MagicMock(status="ok", message="OK", latency_ms=50)
+            })
+            mock_hc.return_value = mock_instance
+
+            response = await client.get(
+                "/api/v1/admin/health",
+                headers=auth_headers(admin_token)
+            )
+
+        data = response.json()
+        assert "ollama" not in data
+        assert "ai" in data
 
     @pytest.mark.asyncio
     async def test_admin_health_non_admin_fails(self, client: AsyncClient, user_token):

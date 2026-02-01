@@ -660,16 +660,28 @@
                                     <span class="health-indicator healthy"></span>
                                 </div>
                                 <div class="health-row">
-                                    <span><i class="bi bi-download me-2"></i>qBittorrent</span>
-                                    <span class="health-indicator" id="qbitHealth"></span>
-                                </div>
-                                <div class="health-row">
                                     <span><i class="bi bi-play-circle me-2"></i>Plex</span>
                                     <span class="health-indicator" id="plexHealth"></span>
                                 </div>
                                 <div class="health-row">
-                                    <span><i class="bi bi-robot me-2"></i>Ollama AI</span>
-                                    <span class="health-indicator" id="ollamaHealth"></span>
+                                    <span><i class="bi bi-download me-2"></i>qBittorrent</span>
+                                    <span class="health-indicator" id="qbittorrentHealth"></span>
+                                </div>
+                                <div class="health-row">
+                                    <span><i class="bi bi-robot me-2"></i>IA</span>
+                                    <span class="health-indicator" id="aiHealth"></span>
+                                </div>
+                                <div class="health-row">
+                                    <span><i class="bi bi-film me-2"></i>TMDB</span>
+                                    <span class="health-indicator" id="tmdbHealth"></span>
+                                </div>
+                                <div class="health-row">
+                                    <span><i class="bi bi-search me-2"></i>YGG</span>
+                                    <span class="health-indicator" id="yggHealth"></span>
+                                </div>
+                                <div class="health-row">
+                                    <span><i class="bi bi-discord me-2"></i>Discord</span>
+                                    <span class="health-indicator" id="discordHealth"></span>
                                 </div>
                             </div>
                         </div>
@@ -2486,9 +2498,16 @@
                 });
                 if (response.ok) {
                     const health = await response.json();
-                    updateHealthIndicator('qbitHealth', health.qbittorrent?.status === 'ok');
                     updateHealthIndicator('plexHealth', health.plex?.status === 'ok');
-                    updateHealthIndicator('ollamaHealth', health.ollama?.status === 'ok');
+                    updateHealthIndicator('qbittorrentHealth', health.qbittorrent?.status === 'ok');
+                    updateHealthIndicator('aiHealth', health.ai?.status === 'ok');
+                    updateHealthIndicator('tmdbHealth', health.tmdb?.status === 'ok');
+                    updateHealthIndicator('yggHealth', health.ygg?.status === 'ok');
+                    updateHealthIndicator('discordHealth', health.discord?.status === 'ok');
+                } else {
+                    // Mark all as unknown on error
+                    ['plexHealth', 'qbittorrentHealth', 'aiHealth', 'tmdbHealth', 'yggHealth', 'discordHealth']
+                        .forEach(id => updateHealthIndicator(id, null));
                 }
             } catch (e) {
                 console.log('Health check not available');
@@ -2498,7 +2517,11 @@
         function updateHealthIndicator(id, status) {
             const el = document.getElementById(id);
             if (el) {
-                el.className = `health-indicator ${status ? 'healthy' : 'unhealthy'}`;
+                if (status === null || status === undefined) {
+                    el.className = 'health-indicator unknown';
+                } else {
+                    el.className = `health-indicator ${status ? 'healthy' : 'unhealthy'}`;
+                }
             }
         }
 
@@ -2821,15 +2844,20 @@
             if (!confirm('Rejeter cet utilisateur ?')) return;
             const token = localStorage.getItem('access_token');
             try {
-                await fetch(`${API_BASE}/admin/users/${userId}/reject`, {
+                const response = await fetch(`${API_BASE}/admin/users/${userId}/reject`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    showToast(error.detail || 'Erreur lors du rejet', 'danger');
+                    return;
+                }
                 showToast('Utilisateur rejeté', 'warning');
                 await loadUsers();
                 await loadStats();
             } catch (e) {
-                showToast('Erreur', 'danger');
+                showToast('Erreur réseau', 'danger');
             }
         }
 
@@ -2837,15 +2865,20 @@
             if (!confirm('Supprimer cet utilisateur ?')) return;
             const token = localStorage.getItem('access_token');
             try {
-                await fetch(`${API_BASE}/admin/users/${userId}`, {
+                const response = await fetch(`${API_BASE}/admin/users/${userId}`, {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    showToast(error.detail || 'Erreur lors de la suppression', 'danger');
+                    return;
+                }
                 showToast('Utilisateur supprimé', 'success');
                 await loadUsers();
                 await loadStats();
             } catch (e) {
-                showToast('Erreur', 'danger');
+                showToast('Erreur réseau', 'danger');
             }
         }
 
@@ -4020,10 +4053,22 @@
                     Object.entries(data.services).forEach(([name, health]) => {
                         updateHealthDot(name, health.status);
                     });
+                } else {
+                    container.innerHTML = `
+                        <div class="text-center py-3 w-100 text-danger">
+                            <i class="bi bi-exclamation-triangle fs-1 mb-2 d-block"></i>
+                            Erreur serveur (${response.status})
+                        </div>
+                    `;
                 }
             } catch (e) {
                 console.error('Error refreshing services health:', e);
-                container.innerHTML = '<p class="text-danger">Erreur lors de la vérification</p>';
+                container.innerHTML = `
+                    <div class="text-center py-3 w-100 text-danger">
+                        <i class="bi bi-wifi-off fs-1 mb-2 d-block"></i>
+                        Erreur réseau
+                    </div>
+                `;
             }
         }
 
@@ -4082,6 +4127,14 @@
                     body: JSON.stringify(config)
                 });
 
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ detail: 'Erreur serveur' }));
+                    statusEl.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>${error.detail || 'Erreur ' + response.status}</span>`;
+                    updateHealthDot(serviceName, 'error');
+                    showToast(`${serviceNames[serviceName]}: ${error.detail || 'Erreur'}`, 'danger');
+                    return;
+                }
+
                 const result = await response.json();
 
                 updateHealthDot(serviceName, result.status);
@@ -4123,6 +4176,14 @@
                     },
                     body: JSON.stringify(testConfig)
                 });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ detail: 'Erreur serveur' }));
+                    statusEl.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>${error.detail || 'Erreur ' + response.status}</span>`;
+                    updateHealthDot('ai', 'error');
+                    showToast(`IA: ${error.detail || 'Erreur'}`, 'danger');
+                    return;
+                }
 
                 const result = await response.json();
 
@@ -4457,6 +4518,11 @@
                 if (response.ok) {
                     monitoredSeriesData = await response.json();
                     renderMonitoredSeries();
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-danger">
+                        <i class="bi bi-exclamation-triangle fs-1 mb-2 d-block"></i>
+                        Erreur serveur (${response.status})
+                    </td></tr>`;
                 }
             } catch (e) {
                 console.error('Error loading monitored series:', e);
@@ -5358,6 +5424,7 @@
 
         async function refreshOpenActions() {
             const token = localStorage.getItem('access_token');
+            const container = document.getElementById('openActionsContainer');
             try {
                 const response = await fetch(`${API_BASE}/workflow/actions?status=open`, {
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -5375,9 +5442,22 @@
                     } else {
                         badge.style.display = 'none';
                     }
+                } else {
+                    container.innerHTML = `
+                        <div class="text-center py-4 text-danger">
+                            <i class="bi bi-exclamation-triangle" style="font-size: 2.5rem;"></i>
+                            <p class="mt-2 mb-0">Erreur serveur (${response.status})</p>
+                        </div>
+                    `;
                 }
             } catch (error) {
                 console.error('Error loading actions:', error);
+                container.innerHTML = `
+                    <div class="text-center py-4 text-danger">
+                        <i class="bi bi-wifi-off" style="font-size: 2.5rem;"></i>
+                        <p class="mt-2 mb-0">Erreur réseau</p>
+                    </div>
+                `;
                 showToast('Erreur chargement actions', 'danger');
             }
         }

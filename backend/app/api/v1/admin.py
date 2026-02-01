@@ -354,60 +354,26 @@ async def health_check(
 ):
     """
     Vérifier l'état de tous les services.
-    Optimisé: exécution parallèle avec timeouts courts.
+    Wrapper autour de HealthCheckService pour cohérence avec /services/health/all.
     """
-    import asyncio
-    from concurrent.futures import ThreadPoolExecutor
-    
-    plex = get_plex_manager_service()
-    downloader = get_downloader_service()
-    ai = get_ai_service()
+    from ...services.healthcheck_service import get_healthcheck_service
 
-    # Run health checks in parallel with timeouts
-    loop = asyncio.get_event_loop()
+    healthcheck_service = get_healthcheck_service()
+    results = await healthcheck_service.check_all_services()
 
-    async def check_with_timeout(coro_or_func, timeout=2.0, is_sync=False):
-        try:
-            if is_sync:
-                with ThreadPoolExecutor() as executor:
-                    result = await asyncio.wait_for(
-                        loop.run_in_executor(executor, coro_or_func),
-                        timeout=timeout
-                    )
-            else:
-                result = await asyncio.wait_for(coro_or_func, timeout=timeout)
-            return result
-        except asyncio.TimeoutError:
-            return {"status": "timeout"}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
+    # Format pour compatibilité + tous les services
+    formatted = {}
+    for service_name, result in results.items():
+        formatted[service_name] = {
+            "status": result.status,
+            "message": result.message,
+            "latency_ms": result.latency_ms,
+        }
 
-    # Run all health checks in parallel
-    plex_result, qbit_result, ai_result = await asyncio.gather(
-        check_with_timeout(plex.health_check, is_sync=True),
-        check_with_timeout(downloader.health_check, is_sync=True),
-        check_with_timeout(ai.health_check(), is_sync=False),
-        return_exceptions=True
-    )
+    # Database toujours OK si on arrive ici
+    formatted["database"] = {"status": "ok", "message": "Base de données opérationnelle"}
 
-    # Handle exceptions from gather
-    if isinstance(plex_result, Exception):
-        plex_result = {"status": "error", "message": str(plex_result)}
-    if isinstance(qbit_result, Exception):
-        qbit_result = {"status": "error", "message": str(qbit_result)}
-    if isinstance(ai_result, Exception):
-        ai_result = {"available": False, "error": str(ai_result)}
-
-    return {
-        "plex": plex_result,
-        "qbittorrent": qbit_result,
-        "ai": {
-            "status": "ok" if ai_result.get("available") else "error",
-            "models": ai_result.get("models", []),
-            "error": ai_result.get("error")
-        },
-        "database": {"status": "ok"}
-    }
+    return formatted
 
 
 @router.get("/config")
