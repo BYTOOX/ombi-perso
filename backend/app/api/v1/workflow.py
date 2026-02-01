@@ -2,7 +2,7 @@
 Workflow API endpoints for request pipeline tracking and human-in-the-loop actions.
 """
 import logging
-from typing import Optional, List
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,11 +11,7 @@ from sqlalchemy.orm import selectinload
 from ...dependencies import get_async_db
 from ...models.user import User
 from ...models.request import MediaRequest
-from ...models.workflow import (
-    RequestWorkflowStep, RequestAction,
-    WorkflowStepKey, WorkflowStepStatus,
-    ActionType, ActionStatus
-)
+from ...models.workflow import RequestAction, ActionType, ActionStatus
 from ...schemas.workflow import (
     WorkflowStepResponse, ActionResponse,
     WorkflowDetailResponse, ActionResolveRequest,
