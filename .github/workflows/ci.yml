@@ -35,18 +35,18 @@ jobs:
           cd backend
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio httpx
-      
+          pip install pytest pytest-asyncio httpx aiosqlite
+
       - name: Run linting
         run: |
           pip install ruff
           cd backend
           ruff check app/ --ignore E501
-      
+
       - name: Run tests
         run: |
           cd backend
-          python -m pytest tests/ -v --tb=short || echo "No tests yet"
+          python -m pytest tests/ -v --tb=short
         env:
           DATABASE_URL: sqlite:///./test.db
           SECRET_KEY: test-secret-key-for-ci
