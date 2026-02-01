@@ -1,16 +1,19 @@
 """
-Tests for workflow models and service.
+Tests for workflow models, service, and API endpoints.
 """
 import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+from httpx import AsyncClient
 
 from app.models.workflow import (
     RequestWorkflowStep, RequestAction,
     WorkflowStepKey, WorkflowStepStatus,
     ActionType, ActionStatus
 )
+from app.models.request import MediaRequest, MediaType, RequestStatus
 from app.services.workflow_service import WorkflowService
+from tests.conftest import auth_headers
 
 
 @pytest.fixture
@@ -297,3 +300,225 @@ class TestWorkflowStepModel:
         step.ended_at = None
 
         assert step.duration_seconds is None
+
+
+# =============================================================================
+# WORKFLOW ENDPOINT TESTS
+# =============================================================================
+
+class TestWorkflowEndpoints:
+    """Tests for workflow API endpoints."""
+
+    @pytest.mark.asyncio
+    async def test_get_workflow_for_own_request(
+        self, client: AsyncClient, test_user, user_token, test_db
+    ):
+        """User can get workflow details for their own request."""
+        # Create a request
+        request = MediaRequest(
+            user_id=test_user.id,
+            media_type=MediaType.MOVIE,
+            external_id="workflow-test-1",
+            source="tmdb",
+            title="Workflow Test Movie",
+            status=RequestStatus.PENDING
+        )
+        test_db.add(request)
+        await test_db.commit()
+        await test_db.refresh(request)
+
+        response = await client.get(
+            f"/api/v1/workflow/requests/{request.id}",
+            headers=auth_headers(user_token)
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["request_id"] == request.id
+        assert data["request_title"] == "Workflow Test Movie"
+        assert "steps" in data
+        assert "actions" in data
+
+    @pytest.mark.asyncio
+    async def test_get_workflow_for_others_request_fails(
+        self, client: AsyncClient, admin_user, user_token, test_db
+    ):
+        """User cannot get workflow for another user's request."""
+        # Create request for admin
+        request = MediaRequest(
+            user_id=admin_user.id,
+            media_type=MediaType.MOVIE,
+            external_id="workflow-other",
+            source="tmdb",
+            title="Admin's Movie",
+            status=RequestStatus.PENDING
+        )
+        test_db.add(request)
+        await test_db.commit()
+        await test_db.refresh(request)
+
+        response = await client.get(
+            f"/api/v1/workflow/requests/{request.id}",
+            headers=auth_headers(user_token)  # Regular user token
+        )
+
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_admin_can_get_any_workflow(
+        self, client: AsyncClient, test_user, admin_token, test_db
+    ):
+        """Admin can get workflow for any request."""
+        # Create request for regular user
+        request = MediaRequest(
+            user_id=test_user.id,
+            media_type=MediaType.MOVIE,
+            external_id="workflow-admin-view",
+            source="tmdb",
+            title="User's Movie",
+            status=RequestStatus.PENDING
+        )
+        test_db.add(request)
+        await test_db.commit()
+        await test_db.refresh(request)
+
+        response = await client.get(
+            f"/api/v1/workflow/requests/{request.id}",
+            headers=auth_headers(admin_token)
+        )
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_get_workflow_nonexistent_request(
+        self, client: AsyncClient, user_token
+    ):
+        """Getting workflow for nonexistent request returns 404."""
+        response = await client.get(
+            "/api/v1/workflow/requests/99999",
+            headers=auth_headers(user_token)
+        )
+
+        assert response.status_code == 404
+
+
+class TestWorkflowActionsEndpoints:
+    """Tests for workflow actions endpoints (admin only)."""
+
+    @pytest.mark.asyncio
+    async def test_list_actions_admin_only(
+        self, client: AsyncClient, admin_token
+    ):
+        """Admin can list actions."""
+        response = await client.get(
+            "/api/v1/workflow/actions",
+            headers=auth_headers(admin_token)
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "items" in data
+        assert "total" in data
+
+    @pytest.mark.asyncio
+    async def test_list_actions_non_admin_fails(
+        self, client: AsyncClient, user_token
+    ):
+        """Regular user cannot list actions."""
+        response = await client.get(
+            "/api/v1/workflow/actions",
+            headers=auth_headers(user_token)
+        )
+
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_list_actions_without_auth_fails(
+        self, client: AsyncClient
+    ):
+        """Unauthenticated user cannot list actions."""
+        response = await client.get("/api/v1/workflow/actions")
+
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_get_action_nonexistent(
+        self, client: AsyncClient, admin_token
+    ):
+        """Getting nonexistent action returns 404."""
+        response = await client.get(
+            "/api/v1/workflow/actions/99999",
+            headers=auth_headers(admin_token)
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_resolve_action_nonexistent(
+        self, client: AsyncClient, admin_token
+    ):
+        """Resolving nonexistent action returns error."""
+        response = await client.post(
+            "/api/v1/workflow/actions/99999/resolve",
+            json={"resolution": {"test": "data"}},
+            headers=auth_headers(admin_token)
+        )
+
+        # Should return 400 (action not found) or 404
+        assert response.status_code in [400, 404]
+
+    @pytest.mark.asyncio
+    async def test_cancel_action_nonexistent(
+        self, client: AsyncClient, admin_token
+    ):
+        """Cancelling nonexistent action returns error."""
+        response = await client.post(
+            "/api/v1/workflow/actions/99999/cancel",
+            headers=auth_headers(admin_token)
+        )
+
+        # Should return 400 (action not found) or 404
+        assert response.status_code in [400, 404]
+
+
+class TestWorkflowRetryEndpoint:
+    """Tests for workflow retry step endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_retry_step_admin_only(
+        self, client: AsyncClient, user_token, test_user, test_db
+    ):
+        """Regular user cannot retry steps."""
+        # Create a request
+        request = MediaRequest(
+            user_id=test_user.id,
+            media_type=MediaType.MOVIE,
+            external_id="retry-test",
+            source="tmdb",
+            title="Retry Test",
+            status=RequestStatus.PENDING
+        )
+        test_db.add(request)
+        await test_db.commit()
+        await test_db.refresh(request)
+
+        response = await client.post(
+            f"/api/v1/workflow/requests/{request.id}/retry-step",
+            json={"step_key": "torrent_search"},
+            headers=auth_headers(user_token)
+        )
+
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_retry_step_nonexistent_request(
+        self, client: AsyncClient, admin_token
+    ):
+        """Retrying step for nonexistent request returns 404."""
+        response = await client.post(
+            "/api/v1/workflow/requests/99999/retry-step",
+            json={"step_key": "torrent_search"},
+            headers=auth_headers(admin_token)
+        )
+
+        assert response.status_code == 404
