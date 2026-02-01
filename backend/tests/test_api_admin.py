@@ -170,7 +170,7 @@ class TestAdminHealth:
     @pytest.mark.asyncio
     async def test_admin_health_check(self, client: AsyncClient, admin_token):
         """Admin health endpoint uses HealthCheckService."""
-        with patch("app.api.v1.admin.get_healthcheck_service") as mock_hc:
+        with patch("app.services.healthcheck_service.get_healthcheck_service") as mock_hc:
             mock_result = MagicMock(status="ok", message="OK", latency_ms=50)
             mock_results = {
                 "plex": mock_result,
@@ -196,7 +196,7 @@ class TestAdminHealth:
     @pytest.mark.asyncio
     async def test_admin_health_returns_all_services(self, client: AsyncClient, admin_token):
         """Admin health returns all services from HealthCheckService."""
-        with patch("app.api.v1.admin.get_healthcheck_service") as mock_hc:
+        with patch("app.services.healthcheck_service.get_healthcheck_service") as mock_hc:
             mock_result = MagicMock(status="ok", message="OK", latency_ms=50)
             mock_results = {
                 "plex": mock_result,
@@ -226,7 +226,7 @@ class TestAdminHealth:
     @pytest.mark.asyncio
     async def test_admin_health_no_ollama_key(self, client: AsyncClient, admin_token):
         """Admin health should return 'ai', not 'ollama'."""
-        with patch("app.api.v1.admin.get_healthcheck_service") as mock_hc:
+        with patch("app.services.healthcheck_service.get_healthcheck_service") as mock_hc:
             mock_instance = MagicMock()
             mock_instance.check_all_services = AsyncMock(return_value={
                 "ai": MagicMock(status="ok", message="OK", latency_ms=50)
