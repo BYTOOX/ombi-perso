@@ -8,7 +8,6 @@ from httpx import AsyncClient
 from unittest.mock import patch, MagicMock, AsyncMock
 
 from tests.conftest import auth_headers
-from app.models.user import User, UserRole, UserStatus
 
 
 class TestAdminAccessControl:

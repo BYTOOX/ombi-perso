@@ -16,7 +16,6 @@ from ...schemas.user import UserResponse, UserUpdate, AdminUserCreate
 from ...schemas.download import DownloadStats
 from ...services.downloader import get_downloader_service
 from ...services.plex_manager import get_plex_manager_service
-from ...services.ai_provider import get_ai_service
 from ...config import get_settings
 from ...logging_config import InMemoryLogHandler, get_available_modules, LOG_MODULES
 from .auth import get_current_admin
