@@ -38,6 +38,11 @@
                             <li><a class="dropdown-item" href="/requests.html">
                                     <i class="bi bi-list-check me-2"></i>Mes demandes
                                 </a></li>
+                            <li id="adminLink" class="d-none">
+                                <a class="dropdown-item" href="/admin.html">
+                                    <i class="bi bi-gear me-2"></i>Administration
+                                </a>
+                            </li>
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
@@ -147,6 +152,12 @@
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             if (user.username) {
                 document.getElementById('userAvatar').textContent = user.username.charAt(0).toUpperCase();
+            }
+
+            // Show admin link if user is admin
+            const adminLink = document.getElementById('adminLink');
+            if (adminLink && user.role === 'admin') {
+                adminLink.classList.remove('d-none');
             }
 
             await loadRequests();

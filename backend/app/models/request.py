@@ -10,6 +10,7 @@ from .database import Base
 if TYPE_CHECKING:
     from .user import User
     from .download import Download
+    from .workflow import RequestWorkflowStep, RequestAction
 
 
 class MediaType(str, Enum):
@@ -75,6 +76,18 @@ class MediaRequest(Base):
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="requests")
     downloads: Mapped[list["Download"]] = relationship("Download", back_populates="request")
+    workflow_steps: Mapped[list["RequestWorkflowStep"]] = relationship(
+        "RequestWorkflowStep",
+        back_populates="request",
+        cascade="all, delete-orphan",
+        order_by="RequestWorkflowStep.step_order"
+    )
+    actions: Mapped[list["RequestAction"]] = relationship(
+        "RequestAction",
+        back_populates="request",
+        cascade="all, delete-orphan",
+        order_by="RequestAction.created_at.desc()"
+    )
     
     @property
     def is_anime(self) -> bool:

@@ -27,6 +27,11 @@ from app.models.plex_library import PlexLibraryItem, PlexSyncStatus
 from app.models.rename_settings import RenameSettings, TitleMapping
 from app.models.system_settings import SystemSettings
 from app.models.transfer_history import TransferHistory, TransferStatus
+from app.models.workflow import (
+    RequestWorkflowStep, RequestAction,
+    WorkflowStepKey, WorkflowStepStatus,
+    ActionType, ActionStatus
+)
 
 # Import settings for DATABASE_URL
 from app.config import get_settings

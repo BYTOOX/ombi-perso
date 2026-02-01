@@ -11,6 +11,11 @@ from .monitored_series import MonitoredSeries, MonitorType, AudioPreference, Qua
 from .upgrade_candidate import UpgradeCandidate, UpgradeStatus
 from .episode_schedule import EpisodeReleaseSchedule, EpisodeStatus
 from .library_analysis import AnalysisRun, LibraryAnalysisResult, AnalysisType, Severity, AnalysisRunStatus
+from .workflow import (
+    RequestWorkflowStep, RequestAction,
+    WorkflowStepKey, WorkflowStepStatus,
+    ActionType, ActionStatus
+)
 
 __all__ = [
     # Database
@@ -29,6 +34,10 @@ __all__ = [
     "EpisodeReleaseSchedule", "EpisodeStatus",
     # Library analysis
     "AnalysisRun", "LibraryAnalysisResult", "AnalysisType", "Severity", "AnalysisRunStatus",
+    # Workflow
+    "RequestWorkflowStep", "RequestAction",
+    "WorkflowStepKey", "WorkflowStepStatus",
+    "ActionType", "ActionStatus",
 ]
 
 

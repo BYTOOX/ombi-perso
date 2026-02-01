@@ -595,6 +595,12 @@
                     <span class="badge bg-danger ms-1" id="logsErrorBadge" style="display:none;">0</span>
                 </button>
             </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#workflowTab">
+                    <i class="bi bi-diagram-3 me-2"></i>Workflow
+                    <span class="badge bg-warning ms-1" id="openActionsBadge" style="display:none;">0</span>
+                </button>
+            </li>
         </ul>
 
         <!-- Tab Content -->
@@ -2126,8 +2132,72 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Workflow Tab -->
+            <div class="tab-pane fade" id="workflowTab">
+                <div class="row g-4">
+                    <!-- Open Actions Queue -->
+                    <div class="col-12">
+                        <div class="admin-card">
+                            <div class="admin-card-header">
+                                <h3 class="admin-card-title">
+                                    <i class="bi bi-exclamation-triangle"></i>Actions en attente
+                                </h3>
+                                <button class="btn btn-sm btn-outline-primary" onclick="refreshOpenActions()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Actualiser
+                                </button>
+                            </div>
+                            <div id="openActionsContainer" class="p-3">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                                    <p class="text-muted mt-2 mb-0">Chargement...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
+
+    <!-- Action Detail Modal -->
+    <div class="modal fade" id="actionDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="actionDetailTitle">Details de l'action</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="actionDetailBody">
+                    <!-- Dynamic content -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                    <button type="button" class="btn btn-warning" onclick="cancelCurrentAction()">
+                        <i class="bi bi-x-circle me-1"></i>Ignorer
+                    </button>
+                    <button type="button" class="btn btn-primary-custom" onclick="resolveCurrentAction()">
+                        <i class="bi bi-check-circle me-1"></i>Appliquer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Request Workflow Modal -->
+    <div class="modal fade" id="workflowDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="workflowDetailTitle">Details du workflow</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="workflowDetailBody">
+                    <!-- Dynamic workflow timeline -->
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Create User Modal -->
     <div class="modal fade" id="createUserModal" tabindex="-1">
@@ -5279,6 +5349,501 @@
                 showToast('Erreur chargement', 'danger');
             }
         }
+
+        // =========================================================================
+        // WORKFLOW CENTER FUNCTIONS
+        // =========================================================================
+
+        let currentAction = null;
+
+        async function refreshOpenActions() {
+            const token = localStorage.getItem('access_token');
+            try {
+                const response = await fetch(`${API_BASE}/workflow/actions?status=open`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    renderOpenActions(data.items || []);
+
+                    // Update badge
+                    const badge = document.getElementById('openActionsBadge');
+                    if (data.items && data.items.length > 0) {
+                        badge.textContent = data.items.length;
+                        badge.style.display = 'inline';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading actions:', error);
+                showToast('Erreur chargement actions', 'danger');
+            }
+        }
+
+        function renderOpenActions(actions) {
+            const container = document.getElementById('openActionsContainer');
+
+            if (!actions || actions.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-check-circle" style="font-size: 2.5rem; opacity: 0.6;"></i>
+                        <p class="mt-2 mb-0">Aucune action en attente</p>
+                        <small>Toutes les demandes sont traitees automatiquement</small>
+                    </div>
+                `;
+                return;
+            }
+
+            const actionTypeLabels = {
+                'fix_search_query': 'Corriger recherche',
+                'pick_torrent': 'Choisir torrent',
+                'confirm_rename': 'Confirmer renommage',
+                'fix_mapping': 'Corriger mapping',
+                'retry_step': 'Relancer etape',
+                'mark_unavailable': 'Marquer indisponible',
+                'ignore': 'Ignorer'
+            };
+
+            const actionTypeIcons = {
+                'fix_search_query': 'bi-search',
+                'pick_torrent': 'bi-download',
+                'confirm_rename': 'bi-file-earmark-text',
+                'fix_mapping': 'bi-diagram-2',
+                'retry_step': 'bi-arrow-repeat',
+                'mark_unavailable': 'bi-x-circle',
+                'ignore': 'bi-dash-circle'
+            };
+
+            container.innerHTML = `
+                <div class="table-responsive">
+                    <table class="table table-dark-custom">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Demande</th>
+                                <th>Message</th>
+                                <th>Priorite</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${actions.map(action => `
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-warning">
+                                            <i class="bi ${actionTypeIcons[action.action_type] || 'bi-question'} me-1"></i>
+                                            ${actionTypeLabels[action.action_type] || action.action_type}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="#" onclick="showRequestWorkflow(${action.request_id}); return false;" class="text-info">
+                                            ${action.request_title || 'Demande #' + action.request_id}
+                                        </a>
+                                    </td>
+                                    <td class="text-muted small" style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        ${action.message || '-'}
+                                    </td>
+                                    <td>
+                                        <span class="badge ${action.priority >= 70 ? 'bg-danger' : action.priority >= 40 ? 'bg-warning' : 'bg-secondary'}">
+                                            ${action.priority}
+                                        </span>
+                                    </td>
+                                    <td class="text-muted small">${formatDate(action.created_at)}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary-custom" onclick="openActionDetail(${action.id})">
+                                            <i class="bi bi-pencil"></i> Traiter
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        async function openActionDetail(actionId) {
+            const token = localStorage.getItem('access_token');
+            try {
+                const response = await fetch(`${API_BASE}/workflow/actions/${actionId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    currentAction = await response.json();
+                    renderActionDetail(currentAction);
+                    new bootstrap.Modal(document.getElementById('actionDetailModal')).show();
+                } else {
+                    showToast('Action non trouvee', 'danger');
+                }
+            } catch (error) {
+                showToast('Erreur: ' + error.message, 'danger');
+            }
+        }
+
+        function renderActionDetail(action) {
+            const titleEl = document.getElementById('actionDetailTitle');
+            const bodyEl = document.getElementById('actionDetailBody');
+
+            const actionTypeLabels = {
+                'fix_search_query': 'Corriger la requete de recherche',
+                'pick_torrent': 'Choisir un torrent manuellement',
+                'confirm_rename': 'Confirmer le renommage',
+                'fix_mapping': 'Corriger le mapping de titre',
+                'retry_step': 'Relancer une etape',
+                'mark_unavailable': 'Marquer comme indisponible',
+                'ignore': 'Ignorer'
+            };
+
+            titleEl.textContent = actionTypeLabels[action.action_type] || action.action_type;
+
+            let formHtml = '';
+
+            switch (action.action_type) {
+                case 'fix_search_query':
+                    const payload = action.payload_json || {};
+                    formHtml = `
+                        <div class="mb-3">
+                            <label class="form-label">Requete originale</label>
+                            <input type="text" class="form-control" value="${payload.original_query || ''}" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Titre original</label>
+                            <input type="text" class="form-control" value="${payload.original_title || payload.title || ''}" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nouvelle requete de recherche</label>
+                            <input type="text" class="form-control" id="newSearchQuery"
+                                   value="${payload.original_query || ''}" placeholder="Entrez la nouvelle requete">
+                            <div class="form-text">Modifiez la requete pour trouver le torrent</div>
+                        </div>
+                    `;
+                    break;
+
+                case 'confirm_rename':
+                    const renamePayload = action.payload_json || {};
+                    formHtml = `
+                        <div class="mb-3">
+                            <label class="form-label">Nom original</label>
+                            <input type="text" class="form-control font-monospace" value="${renamePayload.original_name || ''}" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nom suggere</label>
+                            <input type="text" class="form-control font-monospace" id="confirmedRename"
+                                   value="${renamePayload.suggested_name || ''}">
+                        </div>
+                        ${renamePayload.alternatives && renamePayload.alternatives.length ? `
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Alternatives</label>
+                            <div class="list-group">
+                                ${renamePayload.alternatives.map(alt =>
+                                    `<button class="list-group-item list-group-item-action"
+                                             onclick="document.getElementById('confirmedRename').value='${alt}'">${alt}</button>`
+                                ).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="applyMapping">
+                            <label class="form-check-label" for="applyMapping">
+                                Creer un mapping pour ce titre
+                            </label>
+                        </div>
+                    `;
+                    break;
+
+                case 'pick_torrent':
+                    const torrentPayload = action.payload_json || {};
+                    formHtml = `
+                        <div class="mb-3">
+                            <p class="text-muted">${torrentPayload.failed_reason || 'Selection automatique echouee'}</p>
+                        </div>
+                        <div class="list-group" id="torrentCandidates">
+                            ${(torrentPayload.candidates || []).map((t, idx) => `
+                                <label class="list-group-item list-group-item-action">
+                                    <input class="form-check-input me-2" type="radio" name="selectedTorrent" value="${idx}">
+                                    <div class="d-flex justify-content-between align-items-center w-100">
+                                        <div class="text-truncate" style="max-width: 60%;">${t.name}</div>
+                                        <div class="d-flex gap-3 text-muted small">
+                                            <span>${formatFileSize(t.size_bytes || t.size)}</span>
+                                            <span><i class="bi bi-arrow-up"></i> ${t.seeders}</span>
+                                        </div>
+                                    </div>
+                                </label>
+                            `).join('')}
+                        </div>
+                    `;
+                    break;
+
+                default:
+                    formHtml = `
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Type d'action: ${action.action_type}
+                        </div>
+                        <pre class="p-3 rounded" style="background: rgba(0,0,0,0.3); max-height: 300px; overflow: auto;">
+${JSON.stringify(action.payload_json, null, 2)}
+                        </pre>
+                    `;
+            }
+
+            bodyEl.innerHTML = formHtml;
+        }
+
+        async function resolveCurrentAction() {
+            if (!currentAction) return;
+
+            const token = localStorage.getItem('access_token');
+            let resolution = {};
+
+            switch (currentAction.action_type) {
+                case 'fix_search_query':
+                    const newQuery = document.getElementById('newSearchQuery')?.value;
+                    if (!newQuery) {
+                        showToast('Veuillez entrer une requete', 'warning');
+                        return;
+                    }
+                    resolution = { new_query: newQuery };
+                    break;
+
+                case 'confirm_rename':
+                    resolution = {
+                        confirmed_name: document.getElementById('confirmedRename')?.value || '',
+                        apply_mapping: document.getElementById('applyMapping')?.checked || false
+                    };
+                    break;
+
+                case 'pick_torrent':
+                    const selected = document.querySelector('input[name="selectedTorrent"]:checked');
+                    if (!selected) {
+                        showToast('Veuillez selectionner un torrent', 'warning');
+                        return;
+                    }
+                    resolution = { selected_index: parseInt(selected.value) };
+                    break;
+
+                default:
+                    resolution = { acknowledged: true };
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/workflow/actions/${currentAction.id}/resolve`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ resolution })
+                });
+
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('actionDetailModal')).hide();
+                    showToast('Action resolue', 'success');
+                    refreshOpenActions();
+                } else {
+                    const error = await response.json();
+                    showToast('Erreur: ' + (error.detail || 'Impossible de resoudre'), 'danger');
+                }
+            } catch (error) {
+                showToast('Erreur: ' + error.message, 'danger');
+            }
+        }
+
+        async function cancelCurrentAction() {
+            if (!currentAction) return;
+
+            const token = localStorage.getItem('access_token');
+            try {
+                const response = await fetch(`${API_BASE}/workflow/actions/${currentAction.id}/cancel`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('actionDetailModal')).hide();
+                    showToast('Action ignoree', 'info');
+                    refreshOpenActions();
+                } else {
+                    showToast('Erreur annulation', 'danger');
+                }
+            } catch (error) {
+                showToast('Erreur: ' + error.message, 'danger');
+            }
+        }
+
+        async function showRequestWorkflow(requestId) {
+            const token = localStorage.getItem('access_token');
+            try {
+                const response = await fetch(`${API_BASE}/workflow/requests/${requestId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    renderWorkflowDetail(data);
+                    new bootstrap.Modal(document.getElementById('workflowDetailModal')).show();
+                } else {
+                    showToast('Workflow non trouve', 'danger');
+                }
+            } catch (error) {
+                showToast('Erreur: ' + error.message, 'danger');
+            }
+        }
+
+        function renderWorkflowDetail(data) {
+            const titleEl = document.getElementById('workflowDetailTitle');
+            const bodyEl = document.getElementById('workflowDetailBody');
+
+            titleEl.textContent = `Workflow: ${data.request_title}`;
+
+            const stepStatusColors = {
+                'pending': 'secondary',
+                'running': 'info',
+                'success': 'success',
+                'failed': 'danger',
+                'blocked': 'warning'
+            };
+
+            const stepStatusIcons = {
+                'pending': 'bi-circle',
+                'running': 'bi-hourglass-split',
+                'success': 'bi-check-circle-fill',
+                'failed': 'bi-x-circle-fill',
+                'blocked': 'bi-pause-circle-fill'
+            };
+
+            const stepLabels = {
+                'metadata': 'Metadonnees',
+                'torrent_search': 'Recherche torrents',
+                'torrent_pick': 'Selection torrent',
+                'download_add': 'Ajout telechargement',
+                'download_monitor': 'Telechargement',
+                'postprocess': 'Post-traitement',
+                'rename': 'Renommage',
+                'move': 'Deplacement',
+                'plex_scan': 'Scan Plex',
+                'verify': 'Verification'
+            };
+
+            const hasSteps = data.steps && data.steps.length > 0;
+            const hasActions = data.actions && data.actions.length > 0;
+
+            bodyEl.innerHTML = `
+                <div class="row">
+                    <div class="col-md-8">
+                        <h6 class="mb-3"><i class="bi bi-list-ol me-2"></i>Etapes du pipeline</h6>
+                        ${!hasSteps ? `
+                            <div class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox" style="font-size: 2rem; opacity: 0.6;"></i>
+                                <p class="mt-2 mb-0">Aucune etape enregistree</p>
+                                <small>Le workflow n'a pas encore demarre</small>
+                            </div>
+                        ` : `
+                            <div class="workflow-timeline">
+                                ${data.steps.map(step => `
+                                    <div class="d-flex align-items-start mb-3 p-3 rounded" style="background: rgba(0,0,0,0.2);">
+                                        <div class="me-3">
+                                            <i class="bi ${stepStatusIcons[step.status]} text-${stepStatusColors[step.status]}" style="font-size: 1.5rem;"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <strong>${stepLabels[step.step_key] || step.step_key}</strong>
+                                                <span class="badge bg-${stepStatusColors[step.status]}">${step.status}</span>
+                                            </div>
+                                            ${step.last_error_message ? `
+                                                <div class="text-danger small mt-1">
+                                                    <i class="bi bi-exclamation-triangle me-1"></i>${step.last_error_message}
+                                                </div>
+                                            ` : ''}
+                                            <div class="text-muted small mt-1">
+                                                Tentatives: ${step.attempts}/${step.max_attempts}
+                                                ${step.started_at ? ` | Debut: ${formatDate(step.started_at)}` : ''}
+                                            </div>
+                                            ${step.status === 'failed' && step.attempts < step.max_attempts ? `
+                                                <button class="btn btn-sm btn-outline-warning mt-2"
+                                                        onclick="retryStep(${data.request_id}, '${step.step_key}')">
+                                                    <i class="bi bi-arrow-repeat me-1"></i>Relancer
+                                                </button>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="mb-3"><i class="bi bi-hand-index me-2"></i>Actions</h6>
+                        ${!hasActions ? `
+                            <div class="text-center py-4 text-muted">
+                                <p class="mb-0 small">Aucune action requise</p>
+                            </div>
+                        ` : data.actions.map(action => `
+                            <div class="p-3 mb-2 rounded border ${action.status === 'open' ? 'border-warning' : 'border-secondary'}" style="background: rgba(0,0,0,0.2);">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge bg-${action.status === 'open' ? 'warning' : action.status === 'done' ? 'success' : 'secondary'}">
+                                        ${action.action_type}
+                                    </span>
+                                    <small class="text-muted">${formatDate(action.created_at)}</small>
+                                </div>
+                                ${action.message ? `<small class="text-muted d-block mt-1">${action.message.substring(0, 100)}${action.message.length > 100 ? '...' : ''}</small>` : ''}
+                                ${action.status === 'open' ? `
+                                    <button class="btn btn-sm btn-primary-custom mt-2" onclick="openActionDetail(${action.id})">
+                                        <i class="bi bi-pencil me-1"></i>Traiter
+                                    </button>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function retryStep(requestId, stepKey) {
+            const token = localStorage.getItem('access_token');
+            try {
+                const response = await fetch(`${API_BASE}/workflow/requests/${requestId}/retry-step`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ step_key: stepKey })
+                });
+
+                if (response.ok) {
+                    showToast('Etape relancee', 'success');
+                    showRequestWorkflow(requestId);  // Refresh
+                } else {
+                    const error = await response.json();
+                    showToast('Erreur: ' + (error.detail || 'Impossible de relancer'), 'danger');
+                }
+            } catch (error) {
+                showToast('Erreur: ' + error.message, 'danger');
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (!bytes) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Initialize workflow tab when shown
+        document.querySelector('[data-bs-target="#workflowTab"]')?.addEventListener('shown.bs.tab', () => {
+            refreshOpenActions();
+        });
+
+        // Auto-refresh workflow actions every 30 seconds if tab is active
+        setInterval(() => {
+            if (document.querySelector('#workflowTab.active')) {
+                refreshOpenActions();
+            }
+        }, 30000);
     </script>
 </body>
 

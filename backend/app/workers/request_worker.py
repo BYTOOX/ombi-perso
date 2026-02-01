@@ -28,12 +28,19 @@ logger = logging.getLogger(__name__)
     max_retries=3,
     default_retry_delay=300,  # 5 minutes
 )
-def process_request_task(self, request_id: int) -> Dict[str, Any]:
+def process_request_task(
+    self,
+    request_id: int,
+    override_query: str = None,
+    restart_from_step: str = None
+) -> Dict[str, Any]:
     """
     Process a media request through the complete pipeline.
 
     Args:
         request_id: ID of the MediaRequest to process
+        override_query: Optional search query override (for action resolution)
+        restart_from_step: Optional step key to restart from (for retries)
 
     Returns:
         Dict with processing results and status
@@ -42,118 +49,39 @@ def process_request_task(self, request_id: int) -> Dict[str, Any]:
         Retry on temporary failures
         Exception on permanent failures
     """
+    from ..services.pipeline import get_pipeline_service
 
     async def run_pipeline():
-        """Run async pipeline operations."""
-        async with AsyncSessionLocal() as db:
-            try:
-                # 1. Load request
-                result = await db.execute(
-                    select(MediaRequest).where(MediaRequest.id == request_id)
-                )
-                request = result.scalar_one_or_none()
+        """Run async pipeline operations using the pipeline service."""
+        try:
+            pipeline = get_pipeline_service()
+            success = await pipeline.process_request(
+                request_id=request_id,
+                override_query=override_query,
+                restart_from_step=restart_from_step
+            )
 
-                if not request:
-                    raise ValueError(f"Request {request_id} not found")
-
-                logger.info(f"Processing request {request_id}: {request.title}")
-
-                # Update status to processing
-                request.status = RequestStatus.PROCESSING
-                await db.commit()
-
-                # 2. Initialize services with DI
-                # Import here to avoid circular imports
-                from ..services.settings_service import SettingsService
-                from ..services.torrent_scraper import TorrentScraperService
-                from ..services.ai_agent import AIAgentService
-                from ..services.downloader import DownloaderService
-                from ..services.file_renamer import FileRenamerService
-                from ..services.plex_manager import PlexManagerService
-                from ..services.notifications import NotificationService
-
-                # Create service instances
-                settings_service = SettingsService(db)
-                scraper = TorrentScraperService(settings_service)
-                ai_agent = AIAgentService()
-                downloader = DownloaderService()
-                _renamer = FileRenamerService(settings_service, None)  # TODO: title resolver
-                _plex_manager = PlexManagerService(settings_service)
-                _notifier = NotificationService()
-
-                # 3. Search for torrents
-                logger.info(f"Searching torrents for: {request.title}")
-                torrents = await scraper.search(
-                    title=request.title,
-                    media_type=request.media_type,
-                    year=request.year,
-                    season=request.season_number,
-                    episode=request.episode_number,
-                )
-
-                if not torrents:
-                    raise Exception("No torrents found")
-
-                logger.info(f"Found {len(torrents)} torrents")
-
-                # 4. Select best torrent using AI
-                logger.info("Using AI to select best torrent")
-                best_torrent = await ai_agent.select_best_torrent(
-                    torrents=torrents,
-                    request_info={
-                        "title": request.title,
-                        "media_type": request.media_type,
-                        "year": request.year,
-                    }
-                )
-
-                if not best_torrent:
-                    raise Exception("AI failed to select torrent")
-
-                logger.info(f"Selected torrent: {best_torrent.get('title')}")
-
-                # 5. Download torrent
-                logger.info("Starting download")
-                download = await downloader.add_torrent(
-                    torrent_url=best_torrent["download_url"],
-                    save_path=None,  # Use default from settings
-                )
-
-                # Update request with download info
-                request.status = RequestStatus.DOWNLOADING
-                await db.commit()
-
-                # 6. Wait for download completion (async polling)
-                logger.info("Waiting for download to complete")
-                # This will be handled by download_monitor_worker
-                # For now, just return success
-
-                result = {
-                    "status": "downloading",
+            if success:
+                logger.info(f"Request {request_id} pipeline completed successfully")
+                return {
+                    "status": "success",
                     "request_id": request_id,
-                    "torrent": best_torrent["title"],
-                    "download_hash": download.get("hash"),
+                }
+            else:
+                logger.warning(f"Request {request_id} pipeline returned False")
+                return {
+                    "status": "failed",
+                    "request_id": request_id,
                 }
 
-                logger.info(f"Request {request_id} pipeline initiated successfully")
-                return result
+        except Exception as e:
+            logger.error(f"Error processing request {request_id}: {e}")
 
-            except Exception as e:
-                logger.error(f"Error processing request {request_id}: {e}")
+            # Retry on temporary failures
+            if "connection" in str(e).lower() or "timeout" in str(e).lower():
+                raise self.retry(exc=e)
 
-                # Update request status
-                try:
-                    request.status = RequestStatus.FAILED
-                    request.error_message = str(e)
-                    await db.commit()
-                except Exception:
-                    pass
-
-                # Retry on temporary failures
-                if "connection" in str(e).lower() or "timeout" in str(e).lower():
-                    raise self.retry(exc=e)
-
-                raise
+            raise
 
     # Run async pipeline
     return asyncio.run(run_pipeline())

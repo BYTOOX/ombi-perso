@@ -519,6 +519,7 @@ async function initApp() {
 function updateUserUI() {
     const userName = document.getElementById('userName');
     const userAvatar = document.getElementById('userAvatar');
+    const adminLink = document.getElementById('adminLink');
 
     if (userName && state.user) {
         userName.textContent = state.user.username;
@@ -526,6 +527,15 @@ function updateUserUI() {
 
     if (userAvatar && state.user) {
         userAvatar.textContent = state.user.username.charAt(0).toUpperCase();
+    }
+
+    // Show/hide admin link based on user role
+    if (adminLink && state.user) {
+        if (state.user.role === 'admin') {
+            adminLink.classList.remove('d-none');
+        } else {
+            adminLink.classList.add('d-none');
+        }
     }
 }
 

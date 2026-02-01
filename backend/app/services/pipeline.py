@@ -22,6 +22,8 @@ from .downloader import get_downloader_service
 from .file_renamer import get_file_renamer_service
 from .plex_manager import get_plex_manager_service
 from .notifications import get_notification_service
+from .workflow_service import WorkflowService
+from ..models.workflow import WorkflowStepKey, ActionType
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -47,10 +49,20 @@ class RequestPipelineService:
         self.plex = get_plex_manager_service()
         self.notifier = get_notification_service()
     
-    async def process_request(self, request_id: int) -> bool:
+    async def process_request(
+        self,
+        request_id: int,
+        override_query: Optional[str] = None,
+        restart_from_step: Optional[str] = None
+    ) -> bool:
         """
         Process a media request through the full pipeline.
-        
+
+        Args:
+            request_id: ID of the request to process
+            override_query: Optional search query to use instead of title
+            restart_from_step: Optional step key to restart from (for retries)
+
         Returns True if successful, False otherwise.
         """
         async with async_session_factory() as db:
@@ -78,7 +90,7 @@ class RequestPipelineService:
                 
                 # Step 1: Search torrents
                 await self._update_status(db, request, RequestStatus.SEARCHING, "Recherche de torrents...")
-                torrents = await self._search_torrents(request)
+                torrents = await self._search_torrents(db, request, override_query)
                 
                 if not torrents:
                     logger.warning(f"[Request #{request_id}] No torrents found - search returned empty results")
@@ -143,13 +155,23 @@ class RequestPipelineService:
                 await self._update_status(db, request, RequestStatus.ERROR, f"Erreur: {str(e)}")
                 return False
     
-    async def _search_torrents(self, request: MediaRequest) -> list[TorrentResult]:
-        """Search for torrents matching the request."""
+    async def _search_torrents(
+        self,
+        db: AsyncSession,
+        request: MediaRequest,
+        override_query: Optional[str] = None
+    ) -> list[TorrentResult]:
+        """Search for torrents matching the request with workflow tracking."""
+        workflow = WorkflowService(db)
+
+        # Start workflow step
+        await workflow.start_step(request.id, WorkflowStepKey.TORRENT_SEARCH)
+
         # Build search query
-        search_query = request.title
-        if request.year:
+        search_query = override_query or request.title
+        if not override_query and request.year:
             search_query += f" {request.year}"
-        
+
         # Map media type to YGG category
         media_type_map = {
             MediaType.MOVIE: "movie",
@@ -158,21 +180,73 @@ class RequestPipelineService:
             MediaType.ANIMATED_SERIES: "animated_series",
             MediaType.ANIME: "anime"
         }
-        
+
         ygg_type = media_type_map.get(request.media_type, None)
-        
+
         logger.info(f"[Search] Query: '{search_query}'")
         logger.info(f"[Search] Media Type: {request.media_type.value} -> YGG Category: {ygg_type}")
-        
+
         try:
             torrents = await self.scraper.search(
                 query=search_query,
                 media_type=ygg_type
             )
             logger.info(f"[Search] Scraper returned {len(torrents)} results")
+
+            if not torrents:
+                # Failed - no results, create action for admin
+                await workflow.fail_step(
+                    request_id=request.id,
+                    step_key=WorkflowStepKey.TORRENT_SEARCH,
+                    error_code="NO_RESULTS",
+                    error_message=f"Aucun torrent trouvé pour: {search_query}",
+                    artifacts={
+                        "query": search_query,
+                        "media_type": ygg_type,
+                        "results_count": 0
+                    },
+                    create_action=ActionType.FIX_SEARCH_QUERY,
+                    action_payload={
+                        "original_query": search_query,
+                        "title": request.title,
+                        "original_title": request.original_title,
+                        "year": request.year,
+                        "media_type": ygg_type
+                    },
+                    action_priority=70
+                )
+                return []
+
+            # Success - save artifacts with candidate list
+            await workflow.complete_step(
+                request_id=request.id,
+                step_key=WorkflowStepKey.TORRENT_SEARCH,
+                artifacts={
+                    "query": search_query,
+                    "media_type": ygg_type,
+                    "results_count": len(torrents),
+                    "candidates": [
+                        {
+                            "name": t.name,
+                            "size_bytes": t.size_bytes,
+                            "seeders": t.seeders,
+                            "quality": t.quality
+                        }
+                        for t in torrents[:20]  # Store top 20 candidates
+                    ]
+                }
+            )
             return torrents
+
         except Exception as e:
             logger.error(f"[Search] Error: {e}")
+            await workflow.fail_step(
+                request_id=request.id,
+                step_key=WorkflowStepKey.TORRENT_SEARCH,
+                error_code="SEARCH_ERROR",
+                error_message=str(e),
+                artifacts={"query": search_query, "media_type": ygg_type}
+            )
             return []
     
     async def _select_best_torrent(
@@ -328,19 +402,24 @@ class RequestPipelineService:
         download: Download,
         torrent_info: Dict[str, Any]
     ):
-        """Process a completed download: rename, move, scan."""
+        """Process a completed download: rename, move, scan with workflow tracking."""
+        workflow = WorkflowService(db)
+
         try:
             await self._update_status(db, request, RequestStatus.PROCESSING, "Renommage et déplacement...")
-            
+
             download_path = torrent_info.get("content_path") or torrent_info.get("save_path")
-            
+
             if not download_path:
                 raise ValueError("Download path not found")
-            
+
+            # Start RENAME workflow step
+            await workflow.start_step(request.id, WorkflowStepKey.RENAME)
+
             # Rename and move to library
             # Pass the external_id so renamer doesn't need to do async API lookup
             tmdb_id = int(request.external_id) if request.external_id and request.external_id.isdigit() else None
-            
+
             result = self.renamer.process_download(
                 download_path=download_path,
                 media_type=request.media_type,
@@ -348,38 +427,90 @@ class RequestPipelineService:
                 year=request.year,
                 tmdb_id=tmdb_id
             )
-            
+
             if not result.get("success"):
-                raise ValueError(result.get("error", "Rename failed"))
-            
+                # Rename failed - create action for admin
+                error_msg = result.get("error", "Rename failed")
+                await workflow.fail_step(
+                    request_id=request.id,
+                    step_key=WorkflowStepKey.RENAME,
+                    error_code="RENAME_FAILED",
+                    error_message=error_msg,
+                    artifacts={
+                        "download_path": str(download_path),
+                        "media_title": request.title,
+                        "suggested_name": result.get("suggested_name"),
+                        "files_found": result.get("files_found", [])
+                    },
+                    create_action=ActionType.CONFIRM_RENAME,
+                    action_payload={
+                        "original_path": str(download_path),
+                        "original_name": result.get("original_name") or str(download_path).split("/")[-1],
+                        "suggested_name": result.get("suggested_name"),
+                        "alternatives": result.get("alternatives", []),
+                        "error": error_msg
+                    },
+                    action_priority=60
+                )
+                raise ValueError(error_msg)
+
             final_path = result.get("final_path")
+
+            # Complete RENAME step with artifacts
+            await workflow.complete_step(
+                request_id=request.id,
+                step_key=WorkflowStepKey.RENAME,
+                artifacts={
+                    "original_path": str(download_path),
+                    "final_path": final_path,
+                    "files_processed": result.get("files_processed", [])
+                }
+            )
+
             download.final_path = final_path
             download.status = DownloadStatus.COMPLETED
             await db.commit()
-            
+
             logger.info(f"Moved to library: {final_path}")
-            
+
+            # Start PLEX_SCAN workflow step
+            await workflow.start_step(request.id, WorkflowStepKey.PLEX_SCAN)
+
             # Scan Plex library
             await self._update_status(db, request, RequestStatus.PROCESSING, "Scan Plex...")
             self.plex.scan_library()
-            
+
+            # Complete PLEX_SCAN step
+            await workflow.complete_step(
+                request_id=request.id,
+                step_key=WorkflowStepKey.PLEX_SCAN,
+                artifacts={"library_scanned": True}
+            )
+
             # Mark request as completed
             request.status = RequestStatus.COMPLETED
             request.status_message = "Disponible sur Plex"
             request.completed_at = datetime.utcnow()
             await db.commit()
-            
+
             logger.info(f"Request completed: {request.title}")
-            
+
             # Send completion notification
             await self.notifier.notify_request_completed(
                 title=request.title,
                 media_type=request.media_type.value,
                 username=None  # TODO: get username from request.user
             )
-            
+
         except Exception as e:
             logger.exception(f"Failed to process completed download: {e}")
+            # If it's not already tracked as a failed step, track it now
+            await workflow.fail_step(
+                request_id=request.id,
+                step_key=WorkflowStepKey.RENAME,
+                error_code="PROCESSING_ERROR",
+                error_message=str(e)
+            )
             await self._update_status(db, request, RequestStatus.ERROR, f"Erreur de traitement: {str(e)}")
     
     async def _update_status(
@@ -408,7 +539,11 @@ def get_pipeline_service() -> RequestPipelineService:
     return _pipeline_service
 
 
-async def process_request_async(request_id: int):
+async def process_request_async(
+    request_id: int,
+    override_query: Optional[str] = None,
+    restart_from_step: Optional[str] = None
+):
     """Process a request asynchronously (for background task)."""
     pipeline = get_pipeline_service()
-    await pipeline.process_request(request_id)
+    await pipeline.process_request(request_id, override_query, restart_from_step)
